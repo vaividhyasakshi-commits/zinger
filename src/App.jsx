@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -7,6 +7,8 @@ import {
 import {
   addDoc,
   collection,
+  doc,
+  setDoc,
   limit,
   onSnapshot,
   orderBy,
@@ -512,7 +514,7 @@ function Login({ configurationError }) {
    DESKTOP WORKSPACE
 ===================================================== */
 
-function Desktop({ messages, send, connected, logout }) {
+function Desktop({ messages, send, connected, logout, unreadCount, markRead, partnerSeenAt }) {
   const [draft, setDraft] = useState("");
   const [activeTab, setActiveTab] = useState(
     "SessionRenderer.tsx"
@@ -688,6 +690,14 @@ useEffect(() => {
     });
   }, [terminalLogs, bottomTab]);
 
+  useEffect(() => {
+    if (!chatVisible || document.visibilityState !== "visible") return;
+    markRead();
+    const onVisible = () => { if (document.visibilityState === "visible") markRead(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [chatVisible, messages, markRead]);
+  const lastHostSent = [...messages].reverse().find(m => m.role === "host");
   /* ---------------------------------------------------
      CHAT SUBMISSION
   --------------------------------------------------- */
@@ -964,10 +974,12 @@ useEffect(() => {
               ))}
             </div>
 
-            <div
-              className="mini-output"
-              ref={terminalRef}
-            >
+            {unreadCount > 0 && !chatVisible && <button className="terminal-unread-warning"
+              onClick={() => setChatVisible(true)}>
+              ● [MESSAGE ALERT] <b>{unreadCount} UNREAD MESSAGE{unreadCount === 1 ? "" : "S"}</b>
+              <span>CTRL+M TO READ</span>
+            </button>}
+            <div className="mini-output" ref={terminalRef}>
               {bottomTab === "TERMINAL" ? (
                 <>
                   <div>
@@ -1208,7 +1220,10 @@ useEffect(() => {
                   </span>
 
                   <span className="chat-text">
+                    {message.replyTo?.text && <span className="terminal-quote">↳ {message.replyTo.text}</span>}
                     {message.text}
+                    {message.id === lastHostSent?.id &&
+                      <span className="desktop-seen-status">{partnerSeenAt >= lastHostSent.createdAt ? "✓✓ Seen" : "✓ Sent"}</span>}
                   </span>
                 </div>
               ))}
@@ -1283,325 +1298,193 @@ useEffect(() => {
    PARTNER MOBILE INTERFACE
 ===================================================== */
 
-function Mobile({ messages, send, connected, logout }) {
+
+function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
   const [draft, setDraft] = useState("");
-  const endRef = useRef(null);
+  const [replyTo, setReplyTo] = useState(null);
+  const [welcome, setWelcome] = useState(() => {
+    try { return localStorage.getItem("zinger-welcome-once-v2") !== "done"; }
+    catch { return true; }
+  });
+  const inputRef = useRef(null), chatRef = useRef(null), swipeRef = useRef(null);
+  const firstRef = useRef(true), bottomRef = useRef(true);
+  const lastMine = [...messages].reverse().find(m => m.role === "partner");
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({
-      behavior: "smooth",
-    });
-  }, [messages]);
-
-  const submit = (event) => {
-    event.preventDefault();
-
-    if (!draft.trim() || !connected) return;
-
-    send(draft.trim());
-
-    setDraft("");
+    try { localStorage.setItem("zinger-welcome-once-v2", "done"); } catch {}
+  }, []);
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    if (firstRef.current) {
+      firstRef.current = false;
+      el.scrollTop = welcome ? 0 : el.scrollHeight;
+    } else if (bottomRef.current && !welcome) el.scrollTop = el.scrollHeight;
+  }, [messages, welcome]);
+  useEffect(() => {
+    if (!welcome && bottomRef.current && document.visibilityState === "visible") markRead();
+    const check = () => {
+      if (!welcome && bottomRef.current && document.visibilityState === "visible") markRead();
+    };
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, [messages, welcome, markRead]);
+  const onScroll = () => {
+    const el = chatRef.current;
+    if (!el) return;
+    bottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 85;
+    if (welcome && el.scrollTop > 50) setWelcome(false);
+    if (bottomRef.current && !welcome && document.visibilityState === "visible") markRead();
   };
-
-  return (
-    <div className="mobile">
-      <div className="decor decor1">♥</div>
-
-      <div className="decor decor2">✿</div>
-
-      <header className="mobile-head">
-        <div className="mobile-bears">
-          <Bear small />
-          <Bear small white />
+  const startSwipe = (e, message) => {
+    const p = e.touches[0];
+    if (p) swipeRef.current = { x: p.clientX, y: p.clientY, message };
+  };
+  const endSwipe = (e) => {
+    const p = e.changedTouches[0], initial = swipeRef.current;
+    swipeRef.current = null;
+    if (!p || !initial) return;
+    if (p.clientX - initial.x > 55 && Math.abs(p.clientY - initial.y) < 40) {
+      const {id, role, text} = initial.message;
+      setReplyTo({ id, role, text: text.slice(0, 160) });
+      requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true}));
+    }
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!draft.trim() || !connected) return;
+    const okay = await send(draft.trim(), replyTo);
+    if (okay) {
+      setDraft(""); setReplyTo(null); bottomRef.current = true;
+      requestAnimationFrame(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        inputRef.current?.focus({preventScroll:true});
+      });
+    }
+  };
+  return <div className="mobile">
+    <div className="decor decor1">♥</div><div className="decor decor2">✿</div>
+    <header className="mobile-head">
+      <div className="mobile-bears"><Bear small/><Bear small white/></div>
+      <div><h2>Dudu &amp; Bubu <Heart size={16} fill="#ec7991"/></h2>
+        <p><span className="online-dot"/>{connected ? "Together, even from afar" : "Connecting to you..."}</p></div>
+      <button className="mobile-exit" onClick={logout}>♡ Exit</button>
+    </header>
+    <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
+      {welcome && <div className="love-banner">
+        <div className="heart-floating">♡ ♥ ♡</div>
+        <div className="big-bears"><Bear/><Bear white/></div>
+        <b>Our little happy place ♡</b><span>Every message is a tiny hug.</span>
+      </div>}
+      <div className="date-chip">Today • just us two ♡</div>
+      {messages.map(message => <div key={message.id}
+        className={"bubble-wrap " + (message.role === "partner" ? "self" : "other")}
+        onTouchStart={e => startSwipe(e,message)} onTouchEnd={endSwipe}>
+        <div className="bubble">
+          {message.replyTo?.text && <div className="mobile-reply-quote">
+            <b>↳ {message.replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+            <span>{message.replyTo.text}</span></div>}
+          {message.text}
+          <small>{clock(message.createdAt)}{message.role === "partner" ? " ♡" : ""}</small>
+          {message.id === lastMine?.id && <div className="mobile-seen-status">
+            {hostSeenAt >= lastMine.createdAt ? "✓✓ Seen ♡" : "✓ Sent"}
+          </div>}
         </div>
-
-        <div>
-          <h2>
-            Dudu & Bubu{" "}
-            <Heart
-              size={16}
-              fill="#ec7991"
-            />
-          </h2>
-
-          <p>
-            <span className="online-dot" />
-
-            {connected
-              ? "Together, even from afar"
-              : "Connecting to you..."}
-          </p>
-        </div>
-
-        <button
-          className="mobile-exit"
-          onClick={logout}
-        >
-          ♡ Exit
-        </button>
-      </header>
-
-      <div className="love-banner">
-        <div className="heart-floating">
-          ♡ ♥ ♡
-        </div>
-
-        <div className="big-bears">
-          <Bear />
-          <Bear white />
-        </div>
-
-        <b>Our little happy place ♡</b>
-
-        <span>
-          Every message is a tiny hug.
-        </span>
-      </div>
-
-      <div className="mobile-chat">
-        <div className="date-chip">
-          Today • just us two ♡
-        </div>
-
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={
-              "bubble-wrap " +
-              (message.role === "partner"
-                ? "self"
-                : "other")
-            }
-          >
-            <div className="bubble">
-              {message.text}
-
-              <small>
-                {clock(message.createdAt)}
-
-                {message.role === "partner"
-                  ? " ♡"
-                  : ""}
-              </small>
-            </div>
-          </div>
-        ))}
-
-        <div ref={endRef} />
-      </div>
-
-      <form
-        className="mobile-compose"
-        onSubmit={submit}
-      >
-        <span>♡</span>
-
-        <input
-          value={draft}
-          onChange={(e) =>
-            setDraft(e.target.value)
-          }
-          maxLength={2000}
-          placeholder="Write something sweet..."
-          aria-label="Message"
-        />
-
-        <button
-          disabled={
-            !connected || !draft.trim()
-          }
-          aria-label="Send message"
-        >
-          <Send size={19} />
-        </button>
-      </form>
-
-      <div className="mobile-bottom">
-        Made with love, for us two ♡
-      </div>
+      </div>)}
     </div>
-  );
+    <form className="mobile-compose" onSubmit={submit}>
+      {replyTo && <div className="mobile-reply-preview">
+        <div><b>↪ Replying to {replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+          <span>{replyTo.text}</span></div>
+        <button type="button" onClick={() => setReplyTo(null)}>×</button>
+      </div>}
+      <span>♡</span>
+      <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
+        maxLength={2000} placeholder="Write something sweet..." aria-label="Message"
+        autoComplete="off"/>
+      <button type="submit" onPointerDown={e => e.preventDefault()}
+        disabled={!connected || !draft.trim()} aria-label="Send message"><Send size={19}/></button>
+    </form>
+    <div className="mobile-bottom">Made with love, for us two ♡</div>
+  </div>;
 }
 
 /* =====================================================
    MAIN APP — FIREBASE
 ===================================================== */
 
+
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState("");
-
-  /* AUTHENTICATION */
-
+  const [session,setSession] = useState(null), [loading,setLoading] = useState(true);
+  const [messages,setMessages] = useState([]), [connected,setConnected] = useState(false);
+  const [error,setError] = useState("");
+  const [readAt,setReadAt] = useState({host:0,partner:0});
+  const pending = useRef(0);
   useEffect(() => {
-    if (!auth) {
+    if (!auth) { setLoading(false); return; }
+    return onAuthStateChanged(auth, async user => {
+      const role = user?.uid === HOST_UID ? "host" : user?.uid === PARTNER_UID ? "partner" : null;
+      if (user && !role) { await signOut(auth); setSession(null); }
+      else setSession(role ? {role,uid:user.uid} : null);
       setLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (user) => {
-        const role =
-          user?.uid === HOST_UID
-            ? "host"
-            : user?.uid === PARTNER_UID
-            ? "partner"
-            : null;
-
-        if (user && !role) {
-          await signOut(auth);
-          setSession(null);
-        } else {
-          setSession(
-            role
-              ? {
-                  role,
-                  uid: user.uid,
-                }
-              : null
-          );
-        }
-
-        setLoading(false);
-      }
-    );
-
-    return unsubscribe;
-  }, []);
-
-  /* REALTIME FIRESTORE MESSAGES */
-
+    });
+  },[]);
   useEffect(() => {
-    if (!session) {
-      setMessages([]);
-      setConnected(false);
-      return;
-    }
-
-    const messageQuery = query(
-      collection(db, "messages"),
-      orderBy("createdAt", "desc"),
-      limit(200)
-    );
-
-    const unsubscribe = onSnapshot(
-      messageQuery,
-      (snapshot) => {
-        const recentMessages = snapshot.docs
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-            createdAt:
-              doc.data().createdAt?.toMillis?.() ||
-              Date.now(),
-          }))
-          .filter(
-            (message) =>
-              message.createdAt + 86400000 >
-              Date.now()
-          )
-          .reverse();
-
-        setMessages(recentMessages);
-        setConnected(true);
-        setError("");
-      },
-      (err) => {
-        setConnected(false);
-
-        setError(
-          `Connection error: ${err.message}`
-        );
-      }
-    );
-
-    return () => {
-      unsubscribe();
-      setConnected(false);
-    };
-  }, [session]);
-
-  /* HIDE MESSAGES OLDER THAN 24 HOURS */
-
+    if (!session || !db) { setMessages([]); setConnected(false); return; }
+    const q=query(collection(db,"messages"),orderBy("createdAt","desc"),limit(200));
+    return onSnapshot(q,snap=>{
+      setMessages(snap.docs.map(d=>({id:d.id,...d.data(),
+        createdAt:d.data().createdAt?.toMillis?.()||Date.now()}))
+        .filter(m=>m.createdAt+86400000>Date.now()).reverse());
+      setConnected(true); setError("");
+    },err=>{setConnected(false);setError("Connection error: "+err.message);});
+  },[session]);
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setMessages((current) =>
-        current.filter(
-          (message) =>
-            message.createdAt + 86400000 >
-            Date.now()
-        )
-      );
-    }, 60000);
-
-    return () => window.clearInterval(timer);
-  }, []);
-
-  /* LOGOUT */
-
-  const logout = () => signOut(auth);
-
-  /* SEND REAL MESSAGE */
-
-  const send = async (text) => {
-    if (!session || !text.trim()) return;
-
-    try {
-      await addDoc(
-        collection(db, "messages"),
-        {
-          text: text.trim().slice(0, 2000),
-          role: session.role,
-          authorUid: session.uid,
-          createdAt: serverTimestamp(),
-        }
-      );
-    } catch (err) {
-      setError(
-        `Could not send: ${err.message}`
-      );
-    }
+    if (!session || !db || !HOST_UID || !PARTNER_UID) return;
+    const unsubHost=onSnapshot(doc(db,"readStatus",HOST_UID),s=>
+      setReadAt(p=>({...p,host:s.data()?.lastSeenAt?.toMillis?.()||0})),
+      e=>setError("Read status: "+e.message));
+    const unsubPartner=onSnapshot(doc(db,"readStatus",PARTNER_UID),s=>
+      setReadAt(p=>({...p,partner:s.data()?.lastSeenAt?.toMillis?.()||0})),
+      e=>setError("Read status: "+e.message));
+    return ()=>{unsubHost();unsubPartner();};
+  },[session]);
+  useEffect(()=>{
+    const id=setInterval(()=>setMessages(current=>
+      current.filter(m=>m.createdAt+86400000>Date.now())),60000);
+    return ()=>clearInterval(id);
+  },[]);
+  const unreadCount=session ? messages.filter(m=>
+    m.role!==session.role && m.createdAt>readAt[session.role]).length : 0;
+  const markRead=useCallback(async ()=>{
+    if (!session || !db || document.visibilityState!=="visible") return;
+    const latest=[...messages].reverse().find(m=>m.role!==session.role);
+    if (!latest || latest.createdAt<=readAt[session.role] || latest.createdAt<=pending.current) return;
+    pending.current=latest.createdAt;
+    try {await setDoc(doc(db,"readStatus",session.uid),
+      {uid:session.uid,lastSeenAt:serverTimestamp()},{merge:true});}
+    catch(e){pending.current=0;setError("Read receipt: "+e.message);}
+  },[session,messages,readAt]);
+  useEffect(()=>{pending.current=0;},[session?.uid]);
+  const logout=()=>signOut(auth);
+  const send=async (text,replyTo=null)=>{
+    if(!session||!db||!text.trim())return false;
+    try{
+      const payload={text:text.trim().slice(0,2000),role:session.role,
+        authorUid:session.uid,createdAt:serverTimestamp()};
+      if(replyTo?.id && replyTo?.text)payload.replyTo={
+        id:replyTo.id,role:replyTo.role,text:replyTo.text.slice(0,160)};
+      await addDoc(collection(db,"messages"),payload);return true;
+    }catch(e){setError("Could not send: "+e.message);return false;}
   };
-
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        ZINGER WEB D • Initializing session...
-      </div>
-    );
-  }
-
-  if (!session) {
-    return <Login configurationError={firebaseError} />;
-  }
-
-  return (
-    <>
-      {error && (
-        <div className="connection-warning">
-          {error}
-        </div>
-      )}
-
-      {session.role === "host" ? (
-        <Desktop
-          messages={messages}
-          send={send}
-          connected={connected}
-          logout={logout}
-        />
-      ) : (
-        <Mobile
-          messages={messages}
-          send={send}
-          connected={connected}
-          logout={logout}
-        />
-      )}
-    </>
-  );
+  if(loading)return <div className="loading-screen">ZINGER WEB D • Initializing session...</div>;
+  if(!session)return <Login configurationError={firebaseError}/>;
+  return <>
+    {error&&<div className="connection-warning">{error}</div>}
+    {session.role==="host"
+      ?<Desktop messages={messages} send={send} connected={connected} logout={logout}
+        unreadCount={unreadCount} markRead={markRead} partnerSeenAt={readAt.partner}/>
+      :<Mobile messages={messages} send={send} connected={connected} logout={logout}
+        markRead={markRead} hostSeenAt={readAt.host}/>}
+  </>;
 }
