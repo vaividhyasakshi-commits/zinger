@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Replace these placeholders with the two Firebase Authentication UID values.
+    function participant() {
+      return request.auth != null &&
+        request.auth.uid in ['REPLACE_HOST_UID', 'REPLACE_PARTNER_UID'];
+    }
+    match /messages/{messageId} {
+      allow get, list: if participant();
+      allow create: if participant()
+        && request.resource.data.keys().hasOnly(['text','role','authorUid','createdAt'])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.role == (request.auth.uid == 'REPLACE_HOST_UID' ? 'host' : 'partner')
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 2000
+        && request.resource.data.createdAt == request.time;
+      allow update, delete: if false;
+    }
+    match /{document=**} {allow read, write: if false;}
+  }
+}
