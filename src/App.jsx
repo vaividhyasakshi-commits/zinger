@@ -20,6 +20,7 @@ import {
   PARTNER_UID,
   HOST_EMAIL,
   PARTNER_EMAIL,
+  firebaseError,
 } from "./firebase.js";
 import {
   Activity,
@@ -373,7 +374,7 @@ function Bear({ white = false, small = false }) {
    LOGIN
 ===================================================== */
 
-function Login() {
+function Login({ configurationError }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -381,6 +382,8 @@ function Login() {
 
   const handleLogin = async (event) => {
     event.preventDefault();
+
+    if (configurationError) return;
 
     setBusy(true);
     setError("");
@@ -473,11 +476,16 @@ function Login() {
             />
           </label>
 
-          {error && (
-            <div className="login-error">{error}</div>
+          {(configurationError || error) && (
+            <div className="login-error" role="alert">
+              {configurationError || error}
+            </div>
           )}
 
-          <button disabled={busy} className="login-btn">
+          <button
+            disabled={busy || Boolean(configurationError)}
+            className="login-btn"
+          >
             <LockKeyhole size={16} />
 
             {busy
@@ -1429,6 +1437,11 @@ export default function App() {
   /* AUTHENTICATION */
 
   useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(
       auth,
       async (user) => {
@@ -1563,7 +1576,7 @@ export default function App() {
   }
 
   if (!session) {
-    return <Login />;
+    return <Login configurationError={firebaseError} />;
   }
 
   return (

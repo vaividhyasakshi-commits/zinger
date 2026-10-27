@@ -48,4 +48,5 @@ No PHP/Node.js backend hosting is needed; Firebase handles the realtime data exc
 - `Missing or insufficient permissions`: double-check the published Firestore rules and UID values.
 - `auth/invalid-credential`: email mapping or password is incorrect.
 - Blank GitHub Pages page: set `VITE_BASE_PATH` to the correct repo path and redeploy.
+- `auth/invalid-api-key`: the Pages build is missing a valid `VITE_FIREBASE_API_KEY`. Local `.env` is intentionally ignored by Git; add all eight client values to the repository's Actions variables and rerun the deployment. Builds now stop with the missing variable names instead of publishing a broken page. Local development still displays the login screen with a configuration notice when values are missing.
 - Chat not updating: Firestore project/config/rules, internet connectivity, and browser console should be checked.
