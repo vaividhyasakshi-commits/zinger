@@ -514,7 +514,7 @@ function Login({ configurationError }) {
    DESKTOP WORKSPACE
 ===================================================== */
 
-function Desktop({ messages, send, connected, logout, unreadCount, markRead, partnerSeenAt }) {
+function Desktop({ messages, send, connected, logout, unreadCount, markRead, partnerSeenAt, peerActive, peerTyping, onTypingActivity, onChatOpenChange }) {
   const [draft, setDraft] = useState("");
   const [activeTab, setActiveTab] = useState(
     "SessionRenderer.tsx"
@@ -534,6 +534,11 @@ function Desktop({ messages, send, connected, logout, unreadCount, markRead, par
   const [closedFolders, setClosedFolders] = useState({});
 
   const [chatVisible, setChatVisible] = useState(true);
+
+  useEffect(() => {
+    onChatOpenChange(chatVisible);
+    if (!chatVisible) onTypingActivity(false);
+  }, [chatVisible, onChatOpenChange, onTypingActivity]);
 
   const chatRef = useRef(null);
   const logRef = useRef(null);
@@ -708,7 +713,7 @@ useEffect(() => {
     if (!draft.trim() || !connected) return;
 
     send(draft.trim());
-
+    onTypingActivity(false);
     setDraft("");
   };
 
@@ -976,8 +981,8 @@ useEffect(() => {
 
             {unreadCount > 0 && !chatVisible && <button className="terminal-unread-warning"
               onClick={() => setChatVisible(true)}>
-              ● [MESSAGE ALERT] <b>{unreadCount} UNREAD MESSAGE{unreadCount === 1 ? "" : "S"}</b>
-              <span>CTRL+M TO READ</span>
+              ● [ERROR OCCURRED] <b>{unreadCount} FUNCTIONAL ALERT{unreadCount === 1 ? "" : "S"}</b>
+              <span>CTRL+M TO INSPECT</span>
             </button>}
             <div className="mini-output" ref={terminalRef}>
               {bottomTab === "TERMINAL" ? (
@@ -1177,11 +1182,15 @@ useEffect(() => {
                 <b>STREAM INSPECTOR</b>
 
                 <small>
-                  relay/host/worker-01
+                  {peerTyping ? "peer02@remote · typing..." :
+                    peerActive ? "peer02@remote · ACTIVE" : "peer02@remote · AWAY"}
                 </small>
               </div>
 
-              <span className="little-dot" />
+              <span
+                className={`little-dot ${peerActive ? "peer-is-active" : "peer-is-away"}`}
+                title={peerActive ? "Partner chat is active" : "Partner is away"}
+              />
             </div>
 
             <div className="chat-meta">
@@ -1223,7 +1232,12 @@ useEffect(() => {
                     {message.replyTo?.text && <span className="terminal-quote">↳ {message.replyTo.text}</span>}
                     {message.text}
                     {message.id === lastHostSent?.id &&
-                      <span className="desktop-seen-status">{partnerSeenAt >= lastHostSent.createdAt ? "✓✓ Seen" : "✓ Sent"}</span>}
+                      <span
+                        className={`desktop-seen-dot ${partnerSeenAt >= lastHostSent.createdAt ? "is-seen" : "is-sent"}`}
+                        role="img"
+                        aria-label={partnerSeenAt >= lastHostSent.createdAt ? "Seen" : "Sent"}
+                        title={partnerSeenAt >= lastHostSent.createdAt ? "Seen" : "Sent"}
+                      />}
                   </span>
                 </div>
               ))}
@@ -1237,9 +1251,10 @@ useEffect(() => {
 
               <input
                 value={draft}
-                onChange={(e) =>
-                  setDraft(e.target.value)
-                }
+                onChange={(e) => {
+                  setDraft(e.target.value);
+                  onTypingActivity(Boolean(e.target.value.trim()));
+                }}
                 placeholder="execute input..."
                 maxLength={2000}
                 aria-label="Message"
@@ -1299,7 +1314,7 @@ useEffect(() => {
 ===================================================== */
 
 
-function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
+function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerActive, peerTyping, onTypingActivity }) {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [welcome, setWelcome] = useState(() => {
@@ -1356,6 +1371,7 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
     const okay = await send(draft.trim(), replyTo);
     if (okay) {
       setDraft(""); setReplyTo(null); bottomRef.current = true;
+      onTypingActivity(false);
       requestAnimationFrame(() => {
         if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
         inputRef.current?.focus({preventScroll:true});
@@ -1367,7 +1383,12 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
     <header className="mobile-head">
       <div className="mobile-bears"><Bear small/><Bear small white/></div>
       <div><h2>Dudu &amp; Bubu <Heart size={16} fill="#ec7991"/></h2>
-        <p><span className="online-dot"/>{connected ? "Together, even from afar" : "Connecting to you..."}</p></div>
+        <p>
+          <span className={`online-dot ${peerActive ? "" : "peer-is-away"}`}/>
+          {peerTyping ? "Dudu is typing..." :
+            peerActive ? "Dudu is active now ♡" :
+            connected ? "Dudu is away · Together, even from afar" : "Connecting to you..."}
+        </p></div>
       <button className="mobile-exit" onClick={logout}>♡ Exit</button>
     </header>
     <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
@@ -1386,9 +1407,7 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
             <span>{message.replyTo.text}</span></div>}
           {message.text}
           <small>{clock(message.createdAt)}{message.role === "partner" ? " ♡" : ""}</small>
-          {message.id === lastMine?.id && <div className="mobile-seen-status">
-            {hostSeenAt >= lastMine.createdAt ? "✓✓ Seen ♡" : "✓ Sent"}
-          </div>}
+
         </div>
       </div>)}
     </div>
@@ -1399,7 +1418,10 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
         <button type="button" onClick={() => setReplyTo(null)}>×</button>
       </div>}
       <span>♡</span>
-      <input ref={inputRef} value={draft} onChange={e => setDraft(e.target.value)}
+      <input ref={inputRef} value={draft} onChange={e => {
+        setDraft(e.target.value);
+        onTypingActivity(Boolean(e.target.value.trim()));
+      }}
         maxLength={2000} placeholder="Write something sweet..." aria-label="Message"
         autoComplete="off"/>
       <button type="submit" onPointerDown={e => e.preventDefault()}
@@ -1414,12 +1436,120 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt }) {
 ===================================================== */
 
 
+
+// Browser-tab unread count and an optional red count badge on the Z favicon.
+// Canvas output is a data URL, so it works on GitHub Pages as well as localhost.
+function useTabUnreadBadge(unreadCount, active) {
+  useEffect(() => {
+    const icon = document.querySelector('link[rel="icon"]') ||
+      document.createElement("link");
+    if (!icon.parentNode) {
+      icon.rel = "icon";
+      icon.type = "image/png";
+      document.head.appendChild(icon);
+    }
+    const normalTitle = "ZINGER WEB D — Workspace";
+    const count = active ? unreadCount : 0;
+    document.title = count > 0 ? `(${count}) ${normalTitle}` : normalTitle;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 64;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.fillStyle = "#132a20";
+    ctx.fillRect(0, 0, 64, 64);
+    ctx.strokeStyle = "#70e6a1";
+    ctx.lineWidth = 3;
+    ctx.strokeRect(2, 2, 60, 60);
+    ctx.fillStyle = "#a3ffca";
+    ctx.font = "bold 38px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Z", 29, 35);
+
+    if (count > 0) {
+      const badge = count > 99 ? "99+" : String(count);
+      ctx.fillStyle = "#f43f5e";
+      ctx.beginPath();
+      ctx.arc(49, 15, 15, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.font = badge.length >= 3 ? "bold 13px Arial" : "bold 17px Arial";
+      ctx.fillText(badge, 49, 16);
+    }
+    icon.type = "image/png";
+    icon.href = canvas.toDataURL("image/png");
+  }, [unreadCount, active]);
+}
+
 export default function App() {
   const [session,setSession] = useState(null), [loading,setLoading] = useState(true);
   const [messages,setMessages] = useState([]), [connected,setConnected] = useState(false);
   const [error,setError] = useState("");
   const [readAt,setReadAt] = useState({host:0,partner:0});
+  const [remotePresence,setRemotePresence] = useState(null);
+  const [typing,setTyping] = useState(false);
+  const [hostChatOpen,setHostChatOpen] = useState(true);
+  const [pageVisible,setPageVisible] = useState(() => document.visibilityState === "visible");
+  const [now,setNow] = useState(Date.now());
   const pending = useRef(0);
+  const typingTimeoutRef = useRef(null);
+
+  const onChatOpenChange = useCallback(open => setHostChatOpen(open), []);
+  const onTypingActivity = useCallback(hasText => {
+    window.clearTimeout(typingTimeoutRef.current);
+    setTyping(Boolean(hasText));
+    if (hasText) typingTimeoutRef.current = window.setTimeout(() => setTyping(false), 1700);
+  }, []);
+
+  useEffect(() => {
+    const check = () => setPageVisible(document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", check);
+    const timer = window.setInterval(() => setNow(Date.now()), 10000);
+    return () => {
+      document.removeEventListener("visibilitychange", check);
+      window.clearInterval(timer);
+      window.clearTimeout(typingTimeoutRef.current);
+    };
+  }, []);
+
+  const localActive = Boolean(session && pageVisible &&
+    (session.role === "partner" || hostChatOpen));
+
+  useEffect(() => {
+    if (!session || !db) return;
+    const otherUid = session.role === "host" ? PARTNER_UID : HOST_UID;
+    if (!otherUid) return;
+    return onSnapshot(doc(db, "presence", otherUid), snap => {
+      const data = snap.data();
+      setRemotePresence(data ? {
+        active: data.active === true,
+        typing: data.typing === true,
+        updatedAt: data.updatedAt?.toMillis?.() || 0
+      } : null);
+    }, err => setError("Presence status: " + err.message));
+  }, [session]);
+
+  useEffect(() => {
+    if (!session || !db) return;
+    const publish = () => {
+      setDoc(doc(db, "presence", session.uid), {
+        uid: session.uid,
+        active: localActive,
+        typing: localActive && typing,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(err => setError("Presence update: " + err.message));
+    };
+    publish();
+    const timer = window.setInterval(publish, 12000);
+    return () => window.clearInterval(timer);
+  }, [session, localActive, typing]);
+
+  const peerActive = Boolean(remotePresence?.active &&
+    now - remotePresence.updatedAt < 35000);
+  const peerTyping = Boolean(peerActive && remotePresence?.typing);
   useEffect(() => {
     if (!auth) { setLoading(false); return; }
     return onAuthStateChanged(auth, async user => {
@@ -1456,6 +1586,8 @@ export default function App() {
   },[]);
   const unreadCount=session ? messages.filter(m=>
     m.role!==session.role && m.createdAt>readAt[session.role]).length : 0;
+  useTabUnreadBadge(unreadCount, session?.role === "host");
+
   const markRead=useCallback(async ()=>{
     if (!session || !db || document.visibilityState!=="visible") return;
     const latest=[...messages].reverse().find(m=>m.role!==session.role);
@@ -1466,7 +1598,18 @@ export default function App() {
     catch(e){pending.current=0;setError("Read receipt: "+e.message);}
   },[session,messages,readAt]);
   useEffect(()=>{pending.current=0;},[session?.uid]);
-  const logout=()=>signOut(auth);
+  const logout=async ()=>{
+    window.clearTimeout(typingTimeoutRef.current);
+    setTyping(false);
+    if (session && db) {
+      try {
+        await setDoc(doc(db,"presence",session.uid),{
+          uid:session.uid,active:false,typing:false,updatedAt:serverTimestamp()
+        },{merge:true});
+      } catch { /* A stale presence automatically expires. */ }
+    }
+    await signOut(auth);
+  };
   const send=async (text,replyTo=null)=>{
     if(!session||!db||!text.trim())return false;
     try{
@@ -1483,8 +1626,12 @@ export default function App() {
     {error&&<div className="connection-warning">{error}</div>}
     {session.role==="host"
       ?<Desktop messages={messages} send={send} connected={connected} logout={logout}
-        unreadCount={unreadCount} markRead={markRead} partnerSeenAt={readAt.partner}/>
+        unreadCount={unreadCount} markRead={markRead} partnerSeenAt={readAt.partner}
+        peerActive={peerActive} peerTyping={peerTyping}
+        onTypingActivity={onTypingActivity} onChatOpenChange={onChatOpenChange}/>
       :<Mobile messages={messages} send={send} connected={connected} logout={logout}
-        markRead={markRead} hostSeenAt={readAt.host}/>}
+        markRead={markRead} hostSeenAt={readAt.host}
+        peerActive={peerActive} peerTyping={peerTyping}
+        onTypingActivity={onTypingActivity}/>}
   </>;
 }
