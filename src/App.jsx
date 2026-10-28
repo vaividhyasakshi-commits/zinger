@@ -1322,6 +1322,37 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerA
     catch { return true; }
   });
   const inputRef = useRef(null), chatRef = useRef(null), swipeRef = useRef(null);
+
+  // Keep the entire mobile chat inside the visual viewport when the soft keyboard opens.
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      root.style.setProperty("--zinger-mobile-vh",
+        (viewport?.height || window.innerHeight) + "px");
+      root.style.setProperty("--zinger-mobile-offset",
+        (viewport?.offsetTop || 0) + "px");
+    };
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      root.style.removeProperty("--zinger-mobile-vh");
+      root.style.removeProperty("--zinger-mobile-offset");
+    };
+  }, []);
+
+  // Grow the composer vertically, capped at three/four lines so chat remains readable.
+  useEffect(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = Math.min(field.scrollHeight, 112) + "px";
+  }, [draft]);
   const firstRef = useRef(true), bottomRef = useRef(true);
   const lastMine = [...messages].reverse().find(m => m.role === "partner");
 
@@ -1333,13 +1364,15 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerA
     if (!el) return;
     if (firstRef.current) {
       firstRef.current = false;
-      el.scrollTop = welcome ? 0 : el.scrollHeight;
-    } else if (bottomRef.current && !welcome) el.scrollTop = el.scrollHeight;
+      // Always open on the newest conversations, including after refresh.
+      el.scrollTop = el.scrollHeight;
+      bottomRef.current = true;
+    } else if (bottomRef.current) el.scrollTop = el.scrollHeight;
   }, [messages, welcome]);
   useEffect(() => {
-    if (!welcome && bottomRef.current && document.visibilityState === "visible") markRead();
+    if (bottomRef.current && document.visibilityState === "visible") markRead();
     const check = () => {
-      if (!welcome && bottomRef.current && document.visibilityState === "visible") markRead();
+      if (bottomRef.current && document.visibilityState === "visible") markRead();
     };
     document.addEventListener("visibilitychange", check);
     return () => document.removeEventListener("visibilitychange", check);
@@ -1349,7 +1382,7 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerA
     if (!el) return;
     bottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 85;
     if (welcome && el.scrollTop > 50) setWelcome(false);
-    if (bottomRef.current && !welcome && document.visibilityState === "visible") markRead();
+    if (bottomRef.current && document.visibilityState === "visible") markRead();
   };
   const startSwipe = (e, message) => {
     const p = e.touches[0];
@@ -1418,12 +1451,19 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerA
         <button type="button" onClick={() => setReplyTo(null)}>×</button>
       </div>}
       <span>♡</span>
-      <input ref={inputRef} value={draft} onChange={e => {
-        setDraft(e.target.value);
-        onTypingActivity(Boolean(e.target.value.trim()));
-      }}
-        maxLength={2000} placeholder="Write something sweet..." aria-label="Message"
-        autoComplete="off"/>
+      <textarea
+        ref={inputRef}
+        rows={1}
+        value={draft}
+        onChange={e => {
+          setDraft(e.target.value);
+          onTypingActivity(Boolean(e.target.value.trim()));
+        }}
+        maxLength={2000}
+        placeholder="Write something sweet..."
+        aria-label="Message"
+        autoComplete="off"
+      />
       <button type="submit" onPointerDown={e => e.preventDefault()}
         disabled={!connected || !draft.trim()} aria-label="Send message"><Send size={19}/></button>
     </form>

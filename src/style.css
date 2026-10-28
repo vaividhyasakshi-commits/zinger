@@ -754,3 +754,87 @@
 .mobile-chat .bubble small{white-space:nowrap}
 .chat-entry{min-width:0}
 .chat-entry .chat-text{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+
+
+
+/* ===== MOBILE VIEWPORT + PERMANENT BEAR HEADER + PARAGRAPH COMPOSER ===== */
+html, body, #root { min-height:100%; }
+@media (max-width:900px) {
+  html, body, #root { overflow:hidden; height:100%; }
+  .mobile {
+    position:fixed;
+    top:var(--zinger-mobile-offset,0px);
+    left:0; right:0;
+    width:100%;
+    height:var(--zinger-mobile-vh,100dvh);
+    max-height:var(--zinger-mobile-vh,100dvh);
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+}
+.mobile-head {
+  position:relative;
+  z-index:15;
+  flex:0 0 auto;
+  flex-shrink:0;
+  min-height:70px;
+  background:#fffdfd;
+}
+.mobile-bears { flex:0 0 auto; }
+.mobile-head > div:nth-child(2) { min-width:0; flex:1; }
+.mobile-head h2 { white-space:nowrap; }
+.mobile-head p {
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font-size:11px;
+}
+.mobile-chat {
+  flex:1 1 0;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-bottom:12px;
+}
+.mobile-compose {
+  position:relative;
+  z-index:16;
+  flex:0 0 auto;
+  width:100%;
+  min-width:0;
+  gap:8px;
+  padding:7px 10px;
+}
+.mobile-compose textarea {
+  display:block;
+  flex:1 1 0;
+  min-width:0;
+  width:0;
+  height:42px;
+  min-height:42px;
+  max-height:112px;
+  resize:none;
+  border:1px solid #f3d4dc;
+  background:#fff8f9;
+  border-radius:22px;
+  padding:10px 14px;
+  outline:0;
+  font-family:'DM Sans',sans-serif;
+  font-size:15px;
+  line-height:1.42;
+  color:#915e6d;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  overflow-y:auto;
+  box-sizing:border-box;
+  -webkit-appearance:none;
+}
+.mobile-compose textarea:focus {border-color:#ebacbe}
+.mobile-compose textarea::placeholder {color:#ae8b98}
+.mobile-compose > span {flex:0 0 auto}
+.mobile-compose button[type="submit"]{flex:0 0 40px}
+.mobile-bottom {flex:0 0 auto; position:relative; z-index:16;}
