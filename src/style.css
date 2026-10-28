@@ -838,3 +838,16 @@ html, body, #root { min-height:100%; }
 .mobile-compose > span {flex:0 0 auto}
 .mobile-compose button[type="submit"]{flex:0 0 40px}
 .mobile-bottom {flex:0 0 auto; position:relative; z-index:16;}
+/* Hide scrollbar inside mobile message typing box */
+.mobile-compose textarea {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+.mobile-compose textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
