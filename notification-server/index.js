@@ -1,154 +1,42 @@
+import { initializeApp, cert, applicationDefault, deleteApp } from "firebase-admin/app";
+import { getFirestore, Timestamp } from "firebase-admin/firestore";
+import { getMessaging } from "firebase-admin/messaging";
+import { loadServerConfig } from "./config.js";
+import { startNotificationWorker } from "./worker.js";
 
-import admin from "firebase-admin";
+let serverApp;
 
-const HOST_UID = "J7Q21mlsF5NcPUJrA9llqasbt0y1";
-const PARTNER_UID = "yvc9aqXcYUYTh9LcLcyAVgn3xLj1";
-
-function loadCredentials() {
-  const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-
-  if (!raw) {
-    throw new Error(
-      "Missing FIREBASE_SERVICE_ACCOUNT_JSON environment variable."
-    );
-  }
-
-  return JSON.parse(raw);
-}
-
-admin.initializeApp({
-  credential: admin.credential.cert(loadCredentials()),
-});
-
-const db = admin.firestore();
-const messaging = admin.messaging();
-
-console.log("ZINGER notification server starting...");
-
-const startedAt = admin.firestore.Timestamp.now();
-
-async function countUnreadForPartner() {
-  const readSnapshot = await db
-    .collection("readStatus")
-    .doc(PARTNER_UID)
-    .get();
-
-  const lastSeenAt = readSnapshot.data()?.lastSeenAt;
-
-  let query = db
-    .collection("messages")
-    .where("role", "==", "host");
-
-  if (lastSeenAt) {
-    query = query.where("createdAt", ">", lastSeenAt);
-  }
-
-  const countSnapshot = await query.count().get();
-
-  return countSnapshot.data().count;
-}
-
-async function sendPartnerNotification() {
-  const tokenSnapshot = await db
-    .collection("pushTokens")
-    .doc(PARTNER_UID)
-    .get();
-
-  if (!tokenSnapshot.exists) return;
-
-  const tokenData = tokenSnapshot.data();
-
-  if (!tokenData?.enabled || !tokenData?.token) {
-    return;
-  }
-
-  const unreadCount = await countUnreadForPartner();
-
-  if (unreadCount <= 0) return;
-
-  try {
-    const result = await messaging.send({
-      token: tokenData.token,
-
-      data: {
-        type: "beauty-offer",
-        unreadCount: String(unreadCount),
-      },
-
-      webpush: {
-        headers: {
-          Urgency: "high",
-          TTL: "3600",
-        },
-      },
+try {
+  try { process.loadEnvFile(".env"); }
+  catch (error) { if (error.code !== "ENOENT") throw new Error("Could not read the notification server .env file."); }
+  const config = loadServerConfig();
+  const app = serverApp = initializeApp({
+    credential: config.account ? cert(config.account) : applicationDefault(),
+    ...(config.projectId ? { projectId: config.projectId } : {}),
+  });
+  if (process.argv.includes("--check-config")) {
+    console.log("Server credential configuration parsed successfully. This is an offline check; Firebase access has not been tested.");
+    await deleteApp(app);
+  } else {
+    let worker;
+    let shuttingDown = false;
+    const shutdown = async (code = 0) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      await worker?.stop();
+      await deleteApp(app);
+      process.exitCode = code;
+    };
+    worker = await startNotificationWorker({
+      db: getFirestore(app), messaging: getMessaging(app), Timestamp,
+      onFatal: () => { shutdown(1).catch(() => { process.exitCode = 1; }); },
     });
-
-    console.log(
-      "Push sent:",
-      result,
-      "Unread:",
-      unreadCount
-    );
-  } catch (error) {
-    console.error("FCM sending error:", error.code || error.message);
-
-    if (
-      error.code === "messaging/registration-token-not-registered" ||
-      error.code === "messaging/invalid-registration-token"
-    ) {
-      // Remove a token that Firebase has confirmed is invalid.
-      await db
-        .collection("pushTokens")
-        .doc(PARTNER_UID)
-        .delete();
-    }
+    process.on("SIGTERM", () => { shutdown().catch(() => { process.exitCode = 1; }); });
+    process.on("SIGINT", () => { shutdown().catch(() => { process.exitCode = 1; }); });
   }
+} catch (error) {
+  // Configuration errors are curated; SDK error messages can contain sensitive request data.
+  console.error("Notification server startup failed:", error.code || (error.name === "Error" ? error.message : error.name));
+  if (serverApp) await deleteApp(serverApp).catch(() => {});
+  process.exitCode = 1;
 }
-
-// Watch new messages created after this worker starts.
-// Uses server timestamps so previously stored messages
-// are not pushed again when the backend restarts.
-const query = db
-  .collection("messages")
-  .where("createdAt", ">", startedAt)
-  .orderBy("createdAt", "asc");
-
-const unsubscribe = query.onSnapshot(
-  async (snapshot) => {
-    for (const change of snapshot.docChanges()) {
-      if (change.type !== "added") continue;
-
-      const message = change.doc.data();
-
-      if (
-        message.role !== "host" ||
-        message.authorUid !== HOST_UID
-      ) {
-        continue;
-      }
-
-      console.log("New host message:", change.doc.id);
-
-      try {
-        await sendPartnerNotification();
-      } catch (error) {
-        console.error("Notification processing failed:", error);
-      }
-    }
-  },
-  (error) => {
-    console.error("Firestore listener failed:", error);
-    process.exitCode = 1;
-    unsubscribe();
-  }
-);
-
-process.on("SIGTERM", () => {
-  unsubscribe();
-  process.exit(0);
-});
-
-process.on("SIGINT", () => {
-  unsubscribe();
-  process.exit(0);
-});

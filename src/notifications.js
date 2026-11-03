@@ -1,143 +1,63 @@
-
-const SOUND_KEY = "zinger-sound-enabled";
-
 let audioContext = null;
+let generation = 0;
+const oscillators = new Set();
 
 export function isSoundEnabled() {
-  return localStorage.getItem(SOUND_KEY) !== "false";
+  try { return localStorage.getItem("zinger-sound") !== "off"; }
+  catch { return true; }
 }
 
 export function setSoundEnabled(enabled) {
-  localStorage.setItem(SOUND_KEY, String(enabled));
+  try { localStorage.setItem("zinger-sound", enabled ? "on" : "off"); }
+  catch { /* Sound still works when browser storage is unavailable. */ }
 }
 
 export async function unlockNotificationSound() {
+  const current = generation;
   try {
-    const AudioContextClass =
-      window.AudioContext || window.webkitAudioContext;
-
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) return false;
-
-    if (!audioContext) {
-      audioContext = new AudioContextClass();
+    audioContext ||= new AudioContextClass();
+    if (audioContext.state !== "running") await audioContext.resume();
+    if (current !== generation) {
+      await audioContext.suspend();
+      return false;
     }
-
-    if (audioContext.state === "suspended") {
-      await audioContext.resume();
-    }
-
     return audioContext.state === "running";
-  } catch (error) {
-    console.warn("Sound unavailable:", error);
-    return false;
-  }
+  } catch { return false; }
 }
 
 export function playNotificationSound() {
-  if (!isSoundEnabled()) return;
-  if (!audioContext || audioContext.state !== "running") return;
-
+  if (!isSoundEnabled() || audioContext?.state !== "running") return;
   const ctx = audioContext;
   const start = ctx.currentTime;
-
-  const notes = [
-    { frequency: 880, delay: 0, duration: 0.12 },
-    { frequency: 1174.66, delay: 0.10, duration: 0.20 },
-  ];
-
-  notes.forEach(({ frequency, delay, duration }) => {
+  for (const [frequency, delay, duration] of [[880, 0, 0.12], [1174.66, 0.1, 0.2]]) {
     const oscillator = ctx.createOscillator();
     const gain = ctx.createGain();
-
+    const at = start + delay;
     oscillator.type = "sine";
     oscillator.frequency.value = frequency;
-
-    const time = start + delay;
-
-    gain.gain.setValueAtTime(0.0001, time);
-    gain.gain.exponentialRampToValueAtTime(
-      0.12,
-      time + 0.015
-    );
-    gain.gain.exponentialRampToValueAtTime(
-      0.0001,
-      time + duration
-    );
-
+    gain.gain.setValueAtTime(0.0001, at);
+    gain.gain.exponentialRampToValueAtTime(0.08, at + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + duration);
     oscillator.connect(gain);
     gain.connect(ctx.destination);
-
-    oscillator.start(time);
-    oscillator.stop(time + duration);
-  });
-}
-
-export async function enableBeautyNotifications() {
-  if (!("Notification" in window)) {
-    return {
-      success: false,
-      message: "Notifications are not supported on this device.",
+    oscillators.add(oscillator);
+    oscillator.onended = () => {
+      oscillators.delete(oscillator);
+      oscillator.disconnect();
+      gain.disconnect();
     };
-  }
-
-  try {
-    const permission = await Notification.requestPermission();
-
-    return {
-      success: permission === "granted",
-      message:
-        permission === "granted"
-          ? "Beauty notifications enabled!"
-          : "Please allow notifications in browser settings.",
-    };
-  } catch {
-    return {
-      success: false,
-      message: "Could not enable notifications.",
-    };
+    oscillator.start(at);
+    oscillator.stop(at + duration);
   }
 }
 
-export async function showBeautyNotification(unreadCount) {
-  if (
-    unreadCount <= 0 ||
-    !("Notification" in window) ||
-    Notification.permission !== "granted"
-  ) {
-    return;
+export function stopNotificationSound() {
+  generation++;
+  for (const oscillator of oscillators) {
+    try { oscillator.stop(); } catch { /* Already ended. */ }
   }
-
-  const productText =
-    unreadCount === 1 ? "product" : "products";
-
-  const title = "Beauty Deals • 20% OFF 💗";
-  const body =
-    `${unreadCount} ${productText} waiting for you! ✨`;
-
-  const options = {
-    body,
-    tag: "zinger-beauty-offer",
-    renotify: false,
-    silent: true,
-    icon: `${import.meta.env.BASE_URL}favicon.svg`,
-    data: {
-      url: window.location.href,
-    },
-  };
-
-  try {
-    if ("serviceWorker" in navigator) {
-      const registration = await navigator.serviceWorker.ready;
-      await registration.showNotification(title, options);
-    } else {
-      const notification = new Notification(title, options);
-
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
-    }
-  } catch (error) {
-    console.warn("Beauty notification failed:", error);
-  }
+  oscillators.clear();
+  audioContext?.suspend().catch(() => {});
 }

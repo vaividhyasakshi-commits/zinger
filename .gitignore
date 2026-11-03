@@ -3,3 +3,11 @@ dist
 .env
 .env.local
 server/.env
+.env.*
+!.env.example
+*service-account*.json
+*serviceAccount*.json
+*-firebase-adminsdk-*.json
+notification-server/credentials/
+.firebase/
+*-debug.log

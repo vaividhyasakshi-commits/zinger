@@ -3,7 +3,18 @@ import {
   enableZingerPush,
   disableZingerPush,
   getPushPermission,
+  cancelZingerPush,
+  clearBeautyNotifications,
+  listenForForegroundPush,
 } from "./pushNotifications.js";
+import {
+  isSoundEnabled, setSoundEnabled as persistSoundEnabled,
+  unlockNotificationSound, playNotificationSound, stopNotificationSound,
+} from "./notifications.js";
+import {
+  HISTORY_LIMIT, MESSAGE_TTL_MS, createIncomingTracker,
+  unreadMessages, presenceState, lastSeenLabel,
+} from "../shared/chatState.js";
 import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
@@ -497,6 +508,7 @@ function Desktop({
   partnerSeenAt,
   peerActive,
   peerTyping,
+  peerStatus,
   onTypingActivity,
   onChatOpenChange,
 }) {
@@ -607,7 +619,7 @@ function Desktop({
   }, []);
 
   /* ---------------------------------------------------
-   CHAT SHORTCUT: CTRL + M
+   CHAT SHORTCUT: CTRL + K (CTRL + M remains an alias)
 --------------------------------------------------- */
 
   useEffect(() => {
@@ -616,7 +628,7 @@ function Desktop({
         event.ctrlKey &&
         !event.shiftKey &&
         !event.altKey &&
-        event.key.toLowerCase() === "m"
+        ["k", "m"].includes(event.key.toLowerCase())
       ) {
         event.preventDefault();
 
@@ -659,8 +671,8 @@ function Desktop({
   }, [terminalLogs, bottomTab]);
 
   useEffect(() => {
-    if (!chatVisible || document.visibilityState !== "visible") return;
-    markRead();
+    if (!chatVisible) return;
+    if (document.visibilityState === "visible") markRead();
     const onVisible = () => {
       if (document.visibilityState === "visible") markRead();
     };
@@ -672,14 +684,13 @@ function Desktop({
      CHAT SUBMISSION
   --------------------------------------------------- */
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
-
     if (!draft.trim() || !connected) return;
-
-    send(draft.trim());
-    onTypingActivity(false);
-    setDraft("");
+    if (await send(draft.trim())) {
+      onTypingActivity(false);
+      setDraft("");
+    }
   };
 
   /* ---------------------------------------------------
@@ -1074,7 +1085,7 @@ function Desktop({
                     ? "peer02@remote · typing..."
                     : peerActive
                       ? "peer02@remote · ACTIVE"
-                      : "peer02@remote · AWAY"}
+                      : `peer02@remote · ${peerStatus}`}
                 </small>
               </div>
 
@@ -1209,6 +1220,8 @@ function Mobile({
   hostSeenAt,
   peerActive,
   peerTyping,
+  peerStatus,
+  pushSetup,
   onTypingActivity,
 }) {
   const [draft, setDraft] = useState("");
@@ -1348,7 +1361,7 @@ function Mobile({
               : peerActive
                 ? "Dudu is active now ♡"
                 : connected
-                  ? "Dudu is away · Together, even from afar"
+                  ? `Dudu · ${peerStatus}`
                   : "Connecting to you..."}
           </p>
         </div>
@@ -1356,6 +1369,7 @@ function Mobile({
           ♡ Exit
         </button>
       </header>
+      {pushSetup}
       <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
         {welcome && (
           <div className="love-banner">
@@ -1524,9 +1538,8 @@ export default function App() {
   );
   const [now, setNow] = useState(Date.now());
 
-  const [soundEnabled, setSoundEnabled] = useState(
-    () => localStorage.getItem("zinger-sound") !== "off"
-  );
+  const [soundEnabled, setSoundEnabled] = useState(isSoundEnabled);
+  const [networkOnline, setNetworkOnline] = useState(() => navigator.onLine);
 
   const [audioReady, setAudioReady] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
@@ -1535,8 +1548,12 @@ export default function App() {
 
   const pending = useRef(0);
   const typingTimeoutRef = useRef(null);
-  const audioContextRef = useRef(null);
-  const previousMessagesRef = useRef(null);
+  const incomingTrackerRef = useRef(createIncomingTracker());
+  const activeSessionRef = useRef(null);
+  const loggingOutRef = useRef(false);
+  const pushRunRef = useRef(0);
+  const soundSettingsRef = useRef({ soundEnabled, audioReady });
+  soundSettingsRef.current = { soundEnabled, audioReady };
 
   const onChatOpenChange = useCallback(
     (open) => setHostChatOpen(open),
@@ -1560,93 +1577,32 @@ export default function App() {
   // ---------------------------------------------
 
   const unlockAudio = useCallback(async () => {
-    try {
-      const AudioContextClass =
-        window.AudioContext || window.webkitAudioContext;
-
-      if (!AudioContextClass) return false;
-
-      if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContextClass();
-      }
-
-      await audioContextRef.current.resume();
-
-      const ready =
-        audioContextRef.current.state === "running";
-
-      setAudioReady(ready);
-      return ready;
-    } catch {
-      setAudioReady(false);
-      return false;
-    }
-  }, []);
-
-  const playTing = useCallback(() => {
-    const ctx = audioContextRef.current;
-
-    if (!ctx || ctx.state !== "running") return;
-
-    const start = ctx.currentTime;
-
-    [
-      { frequency: 880, delay: 0, duration: 0.12 },
-      { frequency: 1174.66, delay: 0.1, duration: 0.2 },
-    ].forEach(({ frequency, delay, duration }) => {
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const at = start + delay;
-
-      oscillator.type = "sine";
-      oscillator.frequency.value = frequency;
-
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(
-        0.12,
-        at + 0.015
-      );
-      gain.gain.exponentialRampToValueAtTime(
-        0.0001,
-        at + duration
-      );
-
-      oscillator.connect(gain);
-      gain.connect(ctx.destination);
-
-      oscillator.start(at);
-      oscillator.stop(at + duration);
-    });
+    const ready = await unlockNotificationSound();
+    if (activeSessionRef.current?.role === "host") setAudioReady(ready);
+    return ready;
   }, []);
 
   useEffect(() => {
-    if (session?.role !== "host") return;
-
-    const unlock = () => {
-      unlockAudio();
-    };
-
+    if (session?.role !== "host" || !soundEnabled) return;
+    const unlock = () => { unlockAudio(); };
     window.addEventListener("pointerdown", unlock);
     window.addEventListener("keydown", unlock);
-
     return () => {
       window.removeEventListener("pointerdown", unlock);
       window.removeEventListener("keydown", unlock);
+      stopNotificationSound();
     };
-  }, [session?.role, unlockAudio]);
+  }, [session?.role, soundEnabled, unlockAudio]);
 
   const toggleSound = async () => {
     const next = !soundEnabled;
-
     setSoundEnabled(next);
-    localStorage.setItem(
-      "zinger-sound",
-      next ? "on" : "off"
-    );
-
+    persistSoundEnabled(next);
     if (next) {
-      const ready = await unlockAudio();
-      if (ready) playTing();
+      if (await unlockAudio() && activeSessionRef.current?.role === "host") playNotificationSound();
+    } else {
+      stopNotificationSound();
+      setAudioReady(false);
     }
   };
 
@@ -1656,20 +1612,28 @@ export default function App() {
 
   useEffect(() => {
     const check = () => {
-      setPageVisible(
-        document.visibilityState === "visible"
-      );
+      setPageVisible(document.visibilityState === "visible");
+      setNetworkOnline(navigator.onLine);
+      setNow(Date.now());
+      if (document.visibilityState !== "visible") {
+        window.clearTimeout(typingTimeoutRef.current);
+        setTyping(false);
+      }
     };
 
     document.addEventListener("visibilitychange", check);
+    window.addEventListener("online", check);
+    window.addEventListener("offline", check);
 
     const timer = window.setInterval(
       () => setNow(Date.now()),
-      10000
+      1000
     );
 
     return () => {
       document.removeEventListener("visibilitychange", check);
+      window.removeEventListener("online", check);
+      window.removeEventListener("offline", check);
       window.clearInterval(timer);
       window.clearTimeout(typingTimeoutRef.current);
     };
@@ -1678,6 +1642,7 @@ export default function App() {
   const localActive = Boolean(
     session &&
     pageVisible &&
+    networkOnline &&
     (session.role === "partner" || hostChatOpen)
   );
 
@@ -1699,15 +1664,22 @@ export default function App() {
             ? "partner"
             : null;
 
+      cancelZingerPush();
+      stopNotificationSound();
+      setAudioReady(false);
+      setRemotePresence(null);
+      setReadAt({ host: 0, partner: 0 });
+      window.clearTimeout(typingTimeoutRef.current);
+      setTyping(false);
+      const next = role ? { role, uid: user.uid } : null;
+      activeSessionRef.current = next;
+      loggingOutRef.current = false;
+      setSession(next);
+      if (!next) disableZingerPush().catch(() => {});
       if (user && !role) {
-        await signOut(auth);
-        setSession(null);
-      } else {
-        setSession(
-          role ? { role, uid: user.uid } : null
-        );
+        try { await signOut(auth); }
+        catch { setError("Could not end the unauthorized session. Please reload."); }
       }
-
       setLoading(false);
     });
   }, []);
@@ -1717,6 +1689,7 @@ export default function App() {
   // ---------------------------------------------
 
   useEffect(() => {
+    setRemotePresence(null);
     if (!session || !db) return;
 
     const otherUid =
@@ -1734,6 +1707,7 @@ export default function App() {
         setRemotePresence(
           data
             ? {
+                lastActiveAt: data.lastActiveAt?.toMillis?.() || data.updatedAt?.toMillis?.() || 0,
                 active: data.active === true,
                 typing: data.typing === true,
                 updatedAt:
@@ -1750,44 +1724,39 @@ export default function App() {
 
   useEffect(() => {
     if (!session || !db) return;
-
-    const publish = () => {
-      setDoc(
-        doc(db, "presence", session.uid),
-        {
-          uid: session.uid,
-          active: localActive,
-          typing: localActive && typing,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      ).catch((err) => {
-        setError("Presence update: " + err.message);
+    const publish = (active = localActive) => {
+      if (!navigator.onLine || loggingOutRef.current) return;
+      setDoc(doc(db, "presence", session.uid), {
+        uid: session.uid,
+        active,
+        typing: active && typing,
+        updatedAt: serverTimestamp(),
+        ...(active ? { lastActiveAt: serverTimestamp() } : {}),
+      }, { merge: true }).catch((err) => {
+        if (activeSessionRef.current?.uid === session.uid) setError("Presence update: " + err.code);
       });
     };
-
     publish();
+    const timer = localActive ? window.setInterval(publish, 12000) : null;
+    const leave = () => publish(false);
+    window.addEventListener("pagehide", leave);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("pagehide", leave);
+    };
+  }, [session, localActive, typing, networkOnline]);
 
-    const timer = window.setInterval(publish, 12000);
-
-    return () => window.clearInterval(timer);
-  }, [session, localActive, typing]);
-
-  const peerActive = Boolean(
-    remotePresence?.active &&
-    now - remotePresence.updatedAt < 35000
-  );
-
-  const peerTyping = Boolean(
-    peerActive && remotePresence?.typing
-  );
+  const { active: peerActive, typing: peerTyping } = presenceState(remotePresence, now);
+  const peerStatus = lastSeenLabel(remotePresence?.lastActiveAt, now);
 
   // ---------------------------------------------
   // LIVE MESSAGES
   // ---------------------------------------------
 
   useEffect(() => {
-    previousMessagesRef.current = null;
+    incomingTrackerRef.current = createIncomingTracker();
+    setMessages([]);
+    setConnected(false);
 
     if (!session || !db) {
       setMessages([]);
@@ -1798,34 +1767,30 @@ export default function App() {
     const q = query(
       collection(db, "messages"),
       orderBy("createdAt", "desc"),
-      limit(200)
+      limit(HISTORY_LIMIT)
     );
 
     return onSnapshot(
       q,
+      { includeMetadataChanges: true },
       (snapshot) => {
-        setMessages(
-          snapshot.docs
-            .map((d) => ({
-              id: d.id,
-              ...d.data(),
-              createdAt:
-                d.data().createdAt?.toMillis?.() ||
-                Date.now(),
-            }))
-            .filter(
-              (m) =>
-                m.createdAt + 86400000 > Date.now()
-            )
-            .reverse()
-        );
-
-        setConnected(true);
+        if (activeSessionRef.current?.uid !== session.uid) return;
+        const current = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+          pending: d.metadata.hasPendingWrites,
+          createdAt: d.data({ serverTimestamps: "estimate" }).createdAt?.toMillis?.() || 0,
+        })).filter((m) => m.createdAt + MESSAGE_TTL_MS > Date.now()).reverse();
+        const incoming = incomingTrackerRef.current.update(current, session.role, snapshot.metadata);
+        const sound = soundSettingsRef.current;
+        if (incoming.length && session.role === "host" && sound.soundEnabled && sound.audioReady) playNotificationSound();
+        setMessages(current);
+        setConnected(!snapshot.metadata.fromCache && navigator.onLine);
         setError("");
       },
       (err) => {
         setConnected(false);
-        setError("Connection error: " + err.message);
+        setError("Connection error: " + err.code);
       }
     );
   }, [session]);
@@ -1860,9 +1825,11 @@ export default function App() {
         setReadAt((current) => ({
           ...current,
           partner:
-            snapshot.data()?.lastSeenAt?.toMillis?.() ||
-            0,
+            snapshot.data()?.lastSeenAt?.toMillis?.() || 0,
         }));
+        if (session.role === "partner") {
+          clearBeautyNotifications(snapshot.data()?.lastSeenAt?.toMillis?.() || 0).catch(() => {});
+        }
       },
       (err) => {
         setError("Read status: " + err.message);
@@ -1879,7 +1846,7 @@ export default function App() {
     const timer = window.setInterval(() => {
       setMessages((current) =>
         current.filter(
-          (m) => m.createdAt + 86400000 > Date.now()
+          (m) => m.createdAt + MESSAGE_TTL_MS > Date.now()
         )
       );
     }, 60000);
@@ -1888,68 +1855,17 @@ export default function App() {
   }, []);
 
   const unreadCount = session
-    ? messages.filter(
-        (m) =>
-          m.role !== session.role &&
-          m.createdAt > readAt[session.role]
-      ).length
+    ? unreadMessages(messages, session.role, readAt[session.role], now).length
     : 0;
-
-  useTabUnreadBadge(
-    unreadCount,
-    session?.role === "host"
-  );
-
-  // ---------------------------------------------
-  // INCOMING PC SOUND
-  // ---------------------------------------------
-
-  useEffect(() => {
-    if (!session || !connected) {
-      previousMessagesRef.current = null;
-      return;
-    }
-
-    const currentIds = new Set(
-      messages.map((m) => m.id)
-    );
-
-    // Do not notify for old messages on login.
-    if (previousMessagesRef.current === null) {
-      previousMessagesRef.current = currentIds;
-      return;
-    }
-
-    const incoming = messages.filter(
-      (message) =>
-        message.role !== session.role &&
-        !previousMessagesRef.current.has(message.id)
-    );
-
-    previousMessagesRef.current = currentIds;
-
-    if (
-      incoming.length > 0 &&
-      session.role === "host" &&
-      soundEnabled &&
-      audioReady
-    ) {
-      playTing();
-    }
-  }, [
-    messages,
-    session,
-    connected,
-    soundEnabled,
-    audioReady,
-    playTing,
-  ]);
+  useTabUnreadBadge(unreadCount, session?.role === "host");
 
   const markRead = useCallback(async () => {
     if (
       !session ||
       !db ||
-      document.visibilityState !== "visible"
+      document.visibilityState !== "visible" ||
+      !networkOnline ||
+      loggingOutRef.current
     ) {
       return;
     }
@@ -1977,11 +1893,12 @@ export default function App() {
         },
         { merge: true }
       );
+      if (session.role === "partner") clearBeautyNotifications(latest.createdAt).catch(() => {});
     } catch (err) {
       pending.current = 0;
       setError("Read receipt: " + err.message);
     }
-  }, [session, messages, readAt]);
+  }, [session, messages, readAt, networkOnline]);
 
   useEffect(() => {
     pending.current = 0;
@@ -1991,83 +1908,89 @@ export default function App() {
   // FIREBASE CLOUD MESSAGING
   // ---------------------------------------------
 
-  const enablePush = async () => {
-    if (
-      session?.role !== "partner" ||
-      !auth?.currentUser
-    ) {
-      return;
-    }
-
+  const enablePush = useCallback(async (requestPermission = false) => {
+    if (session?.role !== "partner" || !auth?.currentUser || loggingOutRef.current) return;
+    const uid = session.uid;
+    const run = ++pushRunRef.current;
     setPushLoading(true);
     setPushError("");
-
     try {
-      await enableZingerPush(auth.currentUser);
-      setPushEnabled(true);
+      await enableZingerPush(auth.currentUser, { requestPermission });
+      if (activeSessionRef.current?.uid === uid && run === pushRunRef.current) setPushEnabled(true);
     } catch (err) {
-      setPushError(err.message);
+      if (activeSessionRef.current?.uid === uid && run === pushRunRef.current) {
+        setPushEnabled(false);
+        setPushError(err.message);
+      }
     } finally {
-      setPushLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (session?.role !== "partner") {
-      setPushEnabled(false);
-      return;
-    }
-
-    if (getPushPermission() === "granted") {
-      enableZingerPush(auth.currentUser)
-        .then(() => setPushEnabled(true))
-        .catch((err) => {
-          console.warn("FCM registration:", err.message);
-          setPushEnabled(false);
-        });
+      if (run === pushRunRef.current) setPushLoading(false);
     }
   }, [session?.uid, session?.role]);
 
-  // ---------------------------------------------
-  // LOGOUT
-  // ---------------------------------------------
+  useEffect(() => {
+    setPushEnabled(false);
+    setPushError("");
+    setPushLoading(false);
+    if (session?.role !== "partner") return;
+    const restore = () => {
+      if (document.visibilityState === "visible" && navigator.onLine && getPushPermission() === "granted") enablePush(false);
+      else if (getPushPermission() !== "granted") setPushEnabled(false);
+    };
+    restore();
+    const timer = window.setInterval(restore, 60 * 60 * 1000);
+    document.addEventListener("visibilitychange", restore);
+    window.addEventListener("online", restore);
+    const unsubscribe = onSnapshot(doc(db, "pushTokens", session.uid), (snapshot) => {
+      if (!snapshot.exists() || !snapshot.data()?.enabled) setPushEnabled(false);
+    }, (err) => setPushError("Notification registration: " + err.code));
+    return () => {
+      cancelZingerPush();
+      pushRunRef.current++;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", restore);
+      window.removeEventListener("online", restore);
+      unsubscribe();
+    };
+  }, [session?.uid, session?.role, enablePush]);
+
+  useEffect(() => {
+    if (session?.role !== "partner" || !pushEnabled) return;
+    let disposed = false;
+    let unsubscribe;
+    listenForForegroundPush(session).then((stop) => {
+      if (disposed) stop();
+      else unsubscribe = stop;
+    }).catch(() => {});
+    return () => { disposed = true; unsubscribe?.(); };
+  }, [session?.uid, session?.role, pushEnabled]);
 
   const logout = async () => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    activeSessionRef.current = null;
+    pushRunRef.current++;
+    cancelZingerPush();
     window.clearTimeout(typingTimeoutRef.current);
     setTyping(false);
-
-    if (
-      session?.role === "partner" &&
-      auth?.currentUser
-    ) {
-      try {
-        await disableZingerPush(auth.currentUser);
-      } catch (err) {
-        setError("Push cleanup: " + err.message);
-        return;
-      }
+    setPushEnabled(false);
+    stopNotificationSound();
+    setAudioReady(false);
+    if (session && db && navigator.onLine) {
+      // Best effort only: an offline Firestore write must never prevent sign-out.
+      setDoc(doc(db, "presence", session.uid), {
+        uid: session.uid, active: false, typing: false, updatedAt: serverTimestamp(),
+      }, { merge: true }).catch(() => {});
     }
-
-    if (session && db) {
-      try {
-        await setDoc(
-          doc(db, "presence", session.uid),
-          {
-            uid: session.uid,
-            active: false,
-            typing: false,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-      } catch {
-        // Presence expires after heartbeat timeout.
-      }
+    if (session?.role === "partner") {
+      try { await disableZingerPush(auth.currentUser); }
+      catch { console.warn("Notification cleanup incomplete; local alerts disabled. Check connectivity before enabling again."); }
     }
-
-    previousMessagesRef.current = null;
-
-    await signOut(auth);
+    try { await signOut(auth); }
+    catch (err) {
+      loggingOutRef.current = false;
+      activeSessionRef.current = session;
+      setError("Could not sign out: " + err.code);
+    }
   };
 
   // ---------------------------------------------
@@ -2141,28 +2064,12 @@ export default function App() {
         </button>
       )}
 
-      {session.role === "partner" &&
-        !pushEnabled && (
-          <div className="zinger-push-setup">
-            <button
-              type="button"
-              onClick={enablePush}
-              disabled={pushLoading}
-            >
-              {pushLoading
-                ? "Enabling notifications..."
-                : "🔔 Enable Beauty Offers"}
-            </button>
-
-            {pushError && <p>{pushError}</p>}
-          </div>
-        )}
 
       {session.role === "host" ? (
         <Desktop
           messages={messages}
           send={send}
-          connected={connected}
+          connected={connected && networkOnline}
           logout={logout}
           unreadCount={unreadCount}
           markRead={markRead}
@@ -2171,15 +2078,25 @@ export default function App() {
           peerTyping={peerTyping}
           onTypingActivity={onTypingActivity}
           onChatOpenChange={onChatOpenChange}
+          peerStatus={peerStatus}
         />
       ) : (
         <Mobile
           messages={messages}
           send={send}
-          connected={connected}
+          connected={connected && networkOnline}
           logout={logout}
           markRead={markRead}
           hostSeenAt={readAt.host}
+          peerStatus={peerStatus}
+          pushSetup={!pushEnabled && (
+            <div className="zinger-push-setup">
+              <button type="button" onClick={() => enablePush(true)} disabled={pushLoading}>
+                {pushLoading ? "Enabling notifications..." : "🔔 Enable Beauty Offers"}
+              </button>
+              {pushError && <p role="status">{pushError}</p>}
+            </div>
+          )}
           peerActive={peerActive}
           peerTyping={peerTyping}
           onTypingActivity={onTypingActivity}

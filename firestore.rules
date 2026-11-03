@@ -88,12 +88,17 @@ service cloud.firestore {
           'uid', 'active', 'typing', 'updatedAt'
         ])
         && request.resource.data.keys().hasOnly([
-          'uid', 'active', 'typing', 'updatedAt'
+          'uid', 'active', 'typing', 'updatedAt', 'lastActiveAt'
         ])
         && request.resource.data.uid == userId
         && request.resource.data.active is bool
         && request.resource.data.typing is bool
-        && request.resource.data.updatedAt == request.time;
+        && request.resource.data.updatedAt == request.time
+        && (!('lastActiveAt' in request.resource.data)
+          || (request.resource.data.lastActiveAt is timestamp
+            && (request.resource.data.lastActiveAt == request.time
+              || ('lastActiveAt' in resource.data
+                && request.resource.data.lastActiveAt == resource.data.lastActiveAt))));
 
       allow delete: if false;
     }

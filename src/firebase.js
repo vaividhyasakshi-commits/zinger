@@ -2,7 +2,7 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
-import { validateClientConfig } from "./config.js";
+import { getFirebaseWebConfig, validateClientConfig } from "./config.js";
 
 function initializeFirebase() {
   const unavailable = {
@@ -13,19 +13,12 @@ function initializeFirebase() {
       "Sign-in is unavailable because Firebase configuration is incomplete.",
   };
 
-  if (validateClientConfig(import.meta.env).length > 0) {
+  if (validateClientConfig(import.meta.env, { requirePush: false }).length > 0) {
     return unavailable;
   }
 
   try {
-    const app = initializeApp({
-      apiKey: import.meta.env.VITE_FIREBASE_API_KEY.trim(),
-      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN.trim(),
-      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID.trim(),
-      appId: import.meta.env.VITE_FIREBASE_APP_ID.trim(),
-      messagingSenderId:
-        import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim(),
-    });
+    const app = initializeApp(getFirebaseWebConfig(import.meta.env));
 
     return {
       app,
@@ -34,7 +27,7 @@ function initializeFirebase() {
       firebaseError: "",
     };
   } catch (error) {
-    console.error("Firebase initialization failed:", error);
+    console.error("Firebase initialization failed:", error.code || error.name);
     return unavailable;
   }
 }
