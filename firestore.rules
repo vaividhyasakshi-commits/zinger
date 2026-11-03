@@ -1,23 +1,128 @@
+
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Replace these placeholders with the two Firebase Authentication UID values.
+
     function participant() {
       return request.auth != null &&
-        request.auth.uid in ['REPLACE_HOST_UID', 'REPLACE_PARTNER_UID'];
+        request.auth.uid in [
+          'J7Q21mlsF5NcPUJrA9llqasbt0y1',
+          'yvc9aqXcYUYTh9LcLcyAVgn3xLj1'
+        ];
     }
+
+    function isHost() {
+      return request.auth != null &&
+        request.auth.uid ==
+          'J7Q21mlsF5NcPUJrA9llqasbt0y1';
+    }
+
+    function validReply() {
+      return !('replyTo' in request.resource.data)
+        || (
+          request.resource.data.replyTo is map
+          && request.resource.data.replyTo.keys().hasAll([
+            'id', 'role', 'text'
+          ])
+          && request.resource.data.replyTo.keys().hasOnly([
+            'id', 'role', 'text'
+          ])
+          && request.resource.data.replyTo.id is string
+          && request.resource.data.replyTo.role in [
+            'host', 'partner'
+          ]
+          && request.resource.data.replyTo.text is string
+          && request.resource.data.replyTo.text.size() > 0
+          && request.resource.data.replyTo.text.size() <= 160
+        );
+    }
+
     match /messages/{messageId} {
-      allow get, list: if participant();
+      allow read: if participant();
+
       allow create: if participant()
-        && request.resource.data.keys().hasOnly(['text','role','authorUid','createdAt'])
-        && request.resource.data.authorUid == request.auth.uid
-        && request.resource.data.role == (request.auth.uid == 'REPLACE_HOST_UID' ? 'host' : 'partner')
+        && request.resource.data.keys().hasAll([
+          'text', 'role', 'authorUid', 'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'text', 'role', 'authorUid',
+          'createdAt', 'replyTo'
+        ])
+        && request.resource.data.authorUid ==
+          request.auth.uid
+        && request.resource.data.role ==
+          (isHost() ? 'host' : 'partner')
         && request.resource.data.text is string
         && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 2000
-        && request.resource.data.createdAt == request.time;
+        && request.resource.data.createdAt == request.time
+        && validReply();
+
       allow update, delete: if false;
     }
-    match /{document=**} {allow read, write: if false;}
+
+    match /readStatus/{userId} {
+      allow read: if participant();
+
+      allow create, update: if participant()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll([
+          'uid', 'lastSeenAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'lastSeenAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.lastSeenAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /presence/{userId} {
+      allow read: if participant();
+
+      allow create, update: if participant()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll([
+          'uid', 'active', 'typing', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'uid', 'active', 'typing', 'updatedAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.active is bool
+        && request.resource.data.typing is bool
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+    }
+
+    match /pushTokens/{userId} {
+      allow read: if participant()
+        && request.auth.uid == userId;
+
+      allow create, update: if participant()
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasOnly([
+          'uid', 'token', 'enabled', 'updatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'uid', 'token', 'enabled', 'updatedAt'
+        ])
+        && request.resource.data.uid == userId
+        && request.resource.data.token is string
+        && request.resource.data.token.size() > 0
+        && request.resource.data.token.size() <= 4096
+        && request.resource.data.enabled is bool
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if participant()
+        && request.auth.uid == userId;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
