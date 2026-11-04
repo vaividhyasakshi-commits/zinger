@@ -13,7 +13,7 @@ function initializeFirebase() {
       "Sign-in is unavailable because Firebase configuration is incomplete.",
   };
 
-  if (validateClientConfig(import.meta.env, { requirePush: false }).length > 0) {
+  if (validateClientConfig(import.meta.env).length > 0) {
     return unavailable;
   }
 

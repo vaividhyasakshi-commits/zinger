@@ -8,6 +8,5 @@ server/.env
 *service-account*.json
 *serviceAccount*.json
 *-firebase-adminsdk-*.json
-notification-server/credentials/
 .firebase/
 *-debug.log

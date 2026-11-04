@@ -1,21 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  enableZingerPush,
-  disableZingerPush,
-  getPushPermission,
-  cancelZingerPush,
-  clearBeautyNotifications,
-  listenForForegroundPush,
-} from "./pushNotifications.js";
-import {
-  isSoundEnabled, setSoundEnabled as persistSoundEnabled,
-  unlockNotificationSound, playNotificationSound, stopNotificationSound,
-} from "./notifications.js";
-import {
-  HISTORY_LIMIT, MESSAGE_TTL_MS, createIncomingTracker,
-  unreadMessages, presenceState, lastSeenLabel,
-} from "../shared/chatState.js";
-import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
@@ -292,7 +276,10 @@ function shuffleItems(items) {
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
 
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    [shuffled[i], shuffled[j]] = [
+      shuffled[j],
+      shuffled[i],
+    ];
   }
 
   return shuffled;
@@ -351,9 +338,21 @@ function Bear({ white = false, small = false }) {
       <circle cx="43" cy="65" r="4" fill="#48302a" />
       <circle cx="77" cy="65" r="4" fill="#48302a" />
 
-      <ellipse cx="30" cy="76" rx="10" ry="6" fill="#f7a9aa" />
+      <ellipse
+        cx="30"
+        cy="76"
+        rx="10"
+        ry="6"
+        fill="#f7a9aa"
+      />
 
-      <ellipse cx="90" cy="76" rx="10" ry="6" fill="#f7a9aa" />
+      <ellipse
+        cx="90"
+        cy="76"
+        rx="10"
+        ry="6"
+        fill="#f7a9aa"
+      />
 
       <path
         d="M53 77q7 11 14 0"
@@ -363,7 +362,12 @@ function Bear({ white = false, small = false }) {
         strokeLinecap="round"
       />
 
-      <path d="M57 73l3 3 3-3" stroke="#48302a" strokeWidth="2" fill="none" />
+      <path
+        d="M57 73l3 3 3-3"
+        stroke="#48302a"
+        strokeWidth="2"
+        fill="none"
+      />
     </svg>
   );
 }
@@ -401,9 +405,15 @@ function Login({ configurationError }) {
         throw new Error("Invalid login details");
       }
 
-      const result = await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(
+        auth,
+        email,
+        password
+      );
 
-      if (![HOST_UID, PARTNER_UID].includes(result.user.uid)) {
+      if (
+        ![HOST_UID, PARTNER_UID].includes(result.user.uid)
+      ) {
         await signOut(auth);
         throw new Error("Account not authorized");
       }
@@ -411,7 +421,7 @@ function Login({ configurationError }) {
       setError(
         err.message?.includes("authorized")
           ? "Account not authorized"
-          : "Invalid login details or Firebase not configured",
+          : "Invalid login details or Firebase not configured"
       );
     } finally {
       setBusy(false);
@@ -445,6 +455,7 @@ function Login({ configurationError }) {
         <form onSubmit={handleLogin}>
           <label>
             USER IDENTIFIER
+
             <input
               autoComplete="username"
               value={username}
@@ -456,6 +467,7 @@ function Login({ configurationError }) {
 
           <label>
             ACCESS KEY
+
             <input
               autoComplete="current-password"
               type="password"
@@ -478,7 +490,9 @@ function Login({ configurationError }) {
           >
             <LockKeyhole size={16} />
 
-            {busy ? "AUTHENTICATING..." : "INITIALIZE SESSION"}
+            {busy
+              ? "AUTHENTICATING..."
+              : "INITIALIZE SESSION"}
 
             <span>↗</span>
           </button>
@@ -486,7 +500,9 @@ function Login({ configurationError }) {
 
         <div className="login-foot">
           <ShieldCheck size={15} />
+
           AUTHORIZED ACCESS ONLY
+
           <span>v 2.4.0</span>
         </div>
       </div>
@@ -498,28 +514,19 @@ function Login({ configurationError }) {
    DESKTOP WORKSPACE
 ===================================================== */
 
-function Desktop({
-  messages,
-  send,
-  connected,
-  logout,
-  unreadCount,
-  markRead,
-  partnerSeenAt,
-  peerActive,
-  peerTyping,
-  peerStatus,
-  onTypingActivity,
-  onChatOpenChange,
-}) {
+function Desktop({ messages, send, connected, logout, unreadCount, markRead, partnerSeenAt, peerActive, peerTyping, onTypingActivity, onChatOpenChange }) {
   const [draft, setDraft] = useState("");
-  const [activeTab, setActiveTab] = useState("SessionRenderer.tsx");
+  const [activeTab, setActiveTab] = useState(
+    "SessionRenderer.tsx"
+  );
   const [bottomTab, setBottomTab] = useState("TERMINAL");
 
   const [logs, setLogs] = useState([]);
   const [terminalLogs, setTerminalLogs] = useState([]);
 
-  const [liveLine, setLiveLine] = useState("// Waiting for runtime event...");
+  const [liveLine, setLiveLine] = useState(
+    "// Waiting for runtime event..."
+  );
 
   const [tick, setTick] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -554,16 +561,23 @@ function Desktop({
 
       counter++;
 
-      const event = getNextShuffledItem(monitoringEvents, monitoringQueueRef);
+      const event = getNextShuffledItem(
+        monitoringEvents,
+        monitoringQueueRef
+      );
 
-      const command = getNextShuffledItem(terminalCommands, terminalQueueRef);
+      const command = getNextShuffledItem(
+        terminalCommands,
+        terminalQueueRef
+      );
 
       const time = new Date().toLocaleTimeString();
 
-      const duration = Math.floor(Math.random() * 95) + 7;
+      const duration =
+        Math.floor(Math.random() * 95) + 7;
 
       const worker =
-        serverNodes[Math.floor(Math.random() * serverNodes.length)];
+  serverNodes[Math.floor(Math.random() * serverNodes.length)];
 
       setTick(counter);
 
@@ -579,7 +593,7 @@ function Desktop({
       ]);
 
       setLiveLine(
-        `[watch:${String(counter).padStart(4, "0")}] ${event} // ${duration}ms`,
+        `[watch:${String(counter).padStart(4, "0")}] ${event} // ${duration}ms`
       );
 
       setTerminalLogs((previous) => [
@@ -593,10 +607,16 @@ function Desktop({
 
       // Each event schedules the next event independently.
       // Delay changes randomly between 2 and 5 seconds.
-      timeoutId = window.setTimeout(generateActivity, randomDelay());
+      timeoutId = window.setTimeout(
+        generateActivity,
+        randomDelay()
+      );
     };
 
-    timeoutId = window.setTimeout(generateActivity, randomDelay());
+    timeoutId = window.setTimeout(
+      generateActivity,
+      randomDelay()
+    );
 
     return () => {
       cancelled = true;
@@ -612,36 +632,41 @@ function Desktop({
     const startTime = Date.now();
 
     const timer = window.setInterval(() => {
-      setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000));
+      setElapsedSeconds(
+        Math.floor((Date.now() - startTime) / 1000)
+      );
     }, 1000);
 
     return () => window.clearInterval(timer);
   }, []);
 
-  /* ---------------------------------------------------
-   CHAT SHORTCUT: CTRL + K (CTRL + M remains an alias)
+/* ---------------------------------------------------
+   CHAT SHORTCUT: CTRL + M
 --------------------------------------------------- */
 
-  useEffect(() => {
-    const handleShortcut = (event) => {
-      if (
-        event.ctrlKey &&
-        !event.shiftKey &&
-        !event.altKey &&
-        ["k", "m"].includes(event.key.toLowerCase())
-      ) {
-        event.preventDefault();
+useEffect(() => {
+  const handleShortcut = (event) => {
+    if (
+      event.ctrlKey &&
+      !event.shiftKey &&
+      !event.altKey &&
+      event.key.toLowerCase() === "m"
+    ) {
+      event.preventDefault();
 
-        setChatVisible((previous) => !previous);
-      }
-    };
+      setChatVisible((previous) => !previous);
+    }
+  };
 
-    window.addEventListener("keydown", handleShortcut);
+  window.addEventListener("keydown", handleShortcut);
 
-    return () => {
-      window.removeEventListener("keydown", handleShortcut);
-    };
-  }, []);
+  return () => {
+    window.removeEventListener(
+      "keydown",
+      handleShortcut
+    );
+  };
+}, []);
 
   /* ---------------------------------------------------
      AUTO SCROLL
@@ -671,26 +696,25 @@ function Desktop({
   }, [terminalLogs, bottomTab]);
 
   useEffect(() => {
-    if (!chatVisible) return;
-    if (document.visibilityState === "visible") markRead();
-    const onVisible = () => {
-      if (document.visibilityState === "visible") markRead();
-    };
+    if (!chatVisible || document.visibilityState !== "visible") return;
+    markRead();
+    const onVisible = () => { if (document.visibilityState === "visible") markRead(); };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [chatVisible, messages, markRead]);
-  const lastHostSent = [...messages].reverse().find((m) => m.role === "host");
+  const lastHostSent = [...messages].reverse().find(m => m.role === "host");
   /* ---------------------------------------------------
      CHAT SUBMISSION
   --------------------------------------------------- */
 
-  const submit = async (event) => {
+  const submit = (event) => {
     event.preventDefault();
+
     if (!draft.trim() || !connected) return;
-    if (await send(draft.trim())) {
-      onTypingActivity(false);
-      setDraft("");
-    }
+
+    send(draft.trim());
+    onTypingActivity(false);
+    setDraft("");
   };
 
   /* ---------------------------------------------------
@@ -705,7 +729,9 @@ function Desktop({
   };
 
   const activeFile =
-    workspaceFiles.find((file) => file.name === activeTab) || workspaceFiles[0];
+    workspaceFiles.find(
+      (file) => file.name === activeTab
+    ) || workspaceFiles[0];
 
   const visibleDirectories = [];
 
@@ -735,14 +761,17 @@ function Desktop({
     }
   });
 
-  const hours = String(Math.floor(elapsedSeconds / 3600)).padStart(2, "0");
+  const hours = String(
+    Math.floor(elapsedSeconds / 3600)
+  ).padStart(2, "0");
 
-  const minutes = String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(
-    2,
-    "0",
-  );
+  const minutes = String(
+    Math.floor((elapsedSeconds % 3600) / 60)
+  ).padStart(2, "0");
 
-  const seconds = String(elapsedSeconds % 60).padStart(2, "0");
+  const seconds = String(
+    elapsedSeconds % 60
+  ).padStart(2, "0");
 
   /* ---------------------------------------------------
      DESKTOP JSX
@@ -760,12 +789,15 @@ function Desktop({
 
           <b>ZINGER WEB D</b>
 
-          <span className="top-subtitle">Developer Workspace</span>
+          <span className="top-subtitle">
+            Developer Workspace
+          </span>
         </div>
 
         <nav>
-          File &nbsp; Edit &nbsp; Selection &nbsp; View &nbsp; Go &nbsp; Run
-          &nbsp; Terminal &nbsp; Help
+          File &nbsp; Edit &nbsp; Selection &nbsp; View
+          &nbsp; Go &nbsp; Run &nbsp; Terminal &nbsp;
+          Help
         </nav>
 
         <div className="top-status">
@@ -775,7 +807,9 @@ function Desktop({
             stroke="none"
           />
 
-          {connected ? "RUNTIME CONNECTED" : "RECONNECTING"}
+          {connected
+            ? "RUNTIME CONNECTED"
+            : "RECONNECTING"}
 
           <button onClick={logout}>EXIT</button>
         </div>
@@ -825,7 +859,7 @@ function Desktop({
                   }
 
                   const found = workspaceFiles.find(
-                    (item) => item.name === file.name,
+                    (item) => item.name === file.name
                   );
 
                   if (found) {
@@ -872,7 +906,9 @@ function Desktop({
             {workspaceFiles.map((file) => (
               <button
                 key={file.name}
-                className={`tab ${activeTab === file.name ? "active" : ""}`}
+                className={`tab ${
+                  activeTab === file.name ? "active" : ""
+                }`}
                 onClick={() => setActiveTab(file.name)}
               >
                 <FileCode2 size={14} />
@@ -895,14 +931,20 @@ function Desktop({
 
           <div className="code-mock live-code-editor">
             <div className="code-numbers">
-              {[...activeFile.lines, "", liveLine].map((_, index) => (
+              {[
+                ...activeFile.lines,
+                "",
+                liveLine,
+              ].map((_, index) => (
                 <span key={index}>{index + 1}</span>
               ))}
             </div>
 
             <div className="code-content">
               {activeFile.lines.map((line, index) => (
-                <p key={`${activeTab}-${index}`}>{line || "\u00A0"}</p>
+                <p key={`${activeTab}-${index}`}>
+                  {line || "\u00A0"}
+                </p>
               ))}
 
               <p>&nbsp;</p>
@@ -918,59 +960,76 @@ function Desktop({
 
           <section className="bottom-console">
             <div className="bottom-tabs">
-              {["PROBLEMS", "OUTPUT", "TERMINAL", "DEBUG CONSOLE", "PORTS"].map(
-                (item) => (
-                  <button
-                    key={item}
-                    className={bottomTab === item ? "selected" : ""}
-                    onClick={() => setBottomTab(item)}
-                  >
-                    {item}
-                  </button>
-                ),
-              )}
+              {[
+                "PROBLEMS",
+                "OUTPUT",
+                "TERMINAL",
+                "DEBUG CONSOLE",
+                "PORTS",
+              ].map((item) => (
+                <button
+                  key={item}
+                  className={
+                    bottomTab === item ? "selected" : ""
+                  }
+                  onClick={() => setBottomTab(item)}
+                >
+                  {item}
+                </button>
+              ))}
             </div>
 
-            {unreadCount > 0 && !chatVisible && (
-              <button
-                className="terminal-unread-warning"
-                onClick={() => setChatVisible(true)}
-              >
-                ● [ERROR OCCURRED]{" "}
-                <b>
-                  {unreadCount} FUNCTIONAL ALERT{unreadCount === 1 ? "" : "S"}
-                </b>
-                <span>CTRL+M TO INSPECT</span>
-              </button>
-            )}
+            {unreadCount > 0 && !chatVisible && <button className="terminal-unread-warning"
+              onClick={() => setChatVisible(true)}>
+              ● [ERROR OCCURRED] <b>{unreadCount} FUNCTIONAL ALERT{unreadCount === 1 ? "" : "S"}</b>
+              <span>CTRL+M TO INSPECT</span>
+            </button>}
             <div className="mini-output" ref={terminalRef}>
               {bottomTab === "TERMINAL" ? (
                 <>
                   <div>
-                    <span className="prompt">zinger@workspace</span>:
-                    <span className="blue">~/src</span>$ npm run dev
+                    <span className="prompt">
+                      zinger@workspace
+                    </span>
+                    :
+                    <span className="blue">
+                      ~/src
+                    </span>
+                    $ npm run dev
                   </div>
 
                   <div>vite v6.4.5 ready</div>
 
-                  <div className="muted">➜ Local: http://localhost:5173/</div>
+                  <div className="muted">
+                    ➜ Local: http://localhost:5173/
+                  </div>
 
                   <div>
-                    <span className="green">✓</span> Runtime initialized
+                    <span className="green">✓</span>{" "}
+                    Runtime initialized
                   </div>
 
                   {terminalLogs.map((log) => (
                     <div key={log.id}>
-                      <span className="muted">[{log.time}]</span>{" "}
-                      <span className="green">✓</span> {log.command}
+                      <span className="muted">
+                        [{log.time}]
+                      </span>{" "}
+                      <span className="green">
+                        ✓
+                      </span>{" "}
+                      {log.command}
                     </div>
                   ))}
                 </>
               ) : bottomTab === "PROBLEMS" ? (
                 <>
-                  <div className="green">✓ No diagnostic errors</div>
+                  <div className="green">
+                    ✓ No diagnostic errors
+                  </div>
 
-                  <div>0 errors, 0 warnings</div>
+                  <div>
+                    0 errors, 0 warnings
+                  </div>
 
                   <div className="muted">
                     Runtime diagnostics channel ready.
@@ -978,21 +1037,34 @@ function Desktop({
                 </>
               ) : bottomTab === "PORTS" ? (
                 <>
-                  <div>PORT 5173 — Development preview</div>
+                  <div>
+                    PORT 5173 — Development preview
+                  </div>
 
-                  <div>STATE — Channel initialized</div>
+                  <div>
+                    STATE — Channel initialized
+                  </div>
 
-                  <div className="green">✓ Port registry ready</div>
+                  <div className="green">
+                    ✓ Port registry ready
+                  </div>
                 </>
               ) : (
                 <>
-                  <div>[{bottomTab}] Channel initialized</div>
+                  <div>
+                    [{bottomTab}] Channel initialized
+                  </div>
 
-                  <div className="green">✓ Diagnostics available</div>
+                  <div className="green">
+                    ✓ Diagnostics available
+                  </div>
 
                   {logs.slice(-30).map((log) => (
                     <div key={log.id}>
-                      <span className="muted">[{log.time}]</span> {log.event}
+                      <span className="muted">
+                        [{log.time}]
+                      </span>{" "}
+                      {log.event}
                     </div>
                   ))}
                 </>
@@ -1006,7 +1078,9 @@ function Desktop({
         <aside className="right-side">
           <div className="right-panel-title">
             <Activity size={15} />
+
             LIVE PROCESS MONITOR
+
             <span className="pulse" />
           </div>
 
@@ -1014,7 +1088,10 @@ function Desktop({
             <div>
               <small>CPU LOAD</small>
 
-              <b>{(12 + ((tick * 7) % 28)).toFixed(1)}%</b>
+              <b>
+                {(12 + ((tick * 7) % 28)).toFixed(1)}
+                %
+              </b>
             </div>
 
             <div>
@@ -1035,14 +1112,20 @@ function Desktop({
           {/* ANIMATED BARS */}
 
           <div className="bars">
-            {Array.from({ length: 32 }, (_, index) => (
-              <span
-                key={index}
-                style={{
-                  height: 14 + ((index * 13 + tick * 7) % 46) + "px",
-                }}
-              />
-            ))}
+            {Array.from(
+              { length: 32 },
+              (_, index) => (
+                <span
+                  key={index}
+                  style={{
+                    height:
+                      14 +
+                      ((index * 13 + tick * 7) % 46) +
+                      "px",
+                  }}
+                />
+              )
+            )}
           </div>
 
           <div className="trace-head">
@@ -1052,21 +1135,39 @@ function Desktop({
 
           {/* EVENTS */}
 
-          <div className="log-stream" ref={logRef}>
+          <div
+            className="log-stream"
+            ref={logRef}
+          >
             {logs.map((log) => (
               <div key={log.id}>
-                <span>[{log.time}]</span> <b>INFO</b>{" "}
-                <span className="green">{log.worker}</span>
+                <span>
+                  [{log.time}]
+                </span>{" "}
+
+                <b>INFO</b>{" "}
+
+<span className="green">
+  {log.worker}
+</span>
+
                 {log.event}
-                <span className="muted"> ({log.duration}ms)</span>
+
+                <span className="muted">
+                  {" "}({log.duration}ms)
+                </span>
               </div>
             ))}
           </div>
 
           <div className="trace-footer">
             <Wifi size={13} />
+
             transport: relay
-            <span>{connected ? "ONLINE" : "OFFLINE"}</span>
+
+            <span>
+              {connected ? "ONLINE" : "OFFLINE"}
+            </span>
           </div>
         </aside>
 
@@ -1081,19 +1182,14 @@ function Desktop({
                 <b>STREAM INSPECTOR</b>
 
                 <small>
-                  {peerTyping
-                    ? "peer02@remote · typing..."
-                    : peerActive
-                      ? "peer02@remote · ACTIVE"
-                      : `peer02@remote · ${peerStatus}`}
+                  {peerTyping ? "peer02@remote · typing..." :
+                    peerActive ? "peer02@remote · ACTIVE" : "peer02@remote · AWAY"}
                 </small>
               </div>
 
               <span
                 className={`little-dot ${peerActive ? "peer-is-active" : "peer-is-away"}`}
-                title={
-                  peerActive ? "Partner chat is active" : "Partner is away"
-                }
+                title={peerActive ? "Partner chat is active" : "Partner is away"}
               />
             </div>
 
@@ -1103,7 +1199,10 @@ function Desktop({
               OWNER: zinghost345@local.root
             </div>
 
-            <div className="chat-scroll" ref={chatRef}>
+            <div
+              className="chat-scroll"
+              ref={chatRef}
+            >
               {messages.length === 0 && (
                 <div className="chat-empty">
                   // Waiting for session events...
@@ -1114,7 +1213,9 @@ function Desktop({
                 <div
                   key={message.id}
                   className={`chat-entry ${
-                    message.role === "partner" ? "incoming" : "outgoing"
+                    message.role === "partner"
+                      ? "incoming"
+                      : "outgoing"
                   }`}
                 >
                   <span className="chat-time">
@@ -1122,38 +1223,30 @@ function Desktop({
                   </span>
 
                   <span className="chat-address">
-                    {message.role === "partner" ? "peer02@remote" : "root@host"}
+                    {message.role === "partner"
+                      ? "peer02@remote"
+                      : "root@host"}
                   </span>
 
                   <span className="chat-text">
-                    {message.replyTo?.text && (
-                      <span className="terminal-quote">
-                        ↳ {message.replyTo.text}
-                      </span>
-                    )}
+                    {message.replyTo?.text && <span className="terminal-quote">↳ {message.replyTo.text}</span>}
                     {message.text}
-                    {message.id === lastHostSent?.id && (
+                    {message.id === lastHostSent?.id &&
                       <span
                         className={`desktop-seen-dot ${partnerSeenAt >= lastHostSent.createdAt ? "is-seen" : "is-sent"}`}
                         role="img"
-                        aria-label={
-                          partnerSeenAt >= lastHostSent.createdAt
-                            ? "Seen"
-                            : "Sent"
-                        }
-                        title={
-                          partnerSeenAt >= lastHostSent.createdAt
-                            ? "Seen"
-                            : "Sent"
-                        }
-                      />
-                    )}
+                        aria-label={partnerSeenAt >= lastHostSent.createdAt ? "Seen" : "Sent"}
+                        title={partnerSeenAt >= lastHostSent.createdAt ? "Seen" : "Sent"}
+                      />}
                   </span>
                 </div>
               ))}
             </div>
 
-            <form className="chat-input" onSubmit={submit}>
+            <form
+              className="chat-input"
+              onSubmit={submit}
+            >
               <span>$</span>
 
               <input
@@ -1169,7 +1262,9 @@ function Desktop({
 
               <button
                 type="submit"
-                disabled={!connected || !draft.trim()}
+                disabled={
+                  !connected || !draft.trim()
+                }
                 aria-label="Send"
               >
                 <Send size={14} />
@@ -1181,7 +1276,9 @@ function Desktop({
 
               <span>24H TTL</span>
 
-              <span className="green">● SESSION ACTIVE</span>
+              <span className="green">
+                ● SESSION ACTIVE
+              </span>
             </div>
           </section>
         )}
@@ -1192,14 +1289,19 @@ function Desktop({
       <footer className="statusbar">
         <div>
           <GitBranch size={12} />
+
           main* &nbsp; ◯ 0 errors &nbsp; 0 warnings
         </div>
 
         <div>
           <Activity size={12} />
+
           DEV NODE 04
+
           <span>UTF-8</span>
+
           <span>TypeScript React</span>
+
           <span>Ⓩ Zinger Runtime</span>
         </div>
       </footer>
@@ -1211,45 +1313,25 @@ function Desktop({
    PARTNER MOBILE INTERFACE
 ===================================================== */
 
-function Mobile({
-  messages,
-  send,
-  connected,
-  logout,
-  markRead,
-  hostSeenAt,
-  peerActive,
-  peerTyping,
-  peerStatus,
-  pushSetup,
-  onTypingActivity,
-}) {
+
+function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerActive, peerTyping, onTypingActivity }) {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const [welcome, setWelcome] = useState(() => {
-    try {
-      return localStorage.getItem("zinger-welcome-once-v2") !== "done";
-    } catch {
-      return true;
-    }
+    try { return localStorage.getItem("zinger-welcome-once-v2") !== "done"; }
+    catch { return true; }
   });
-  const inputRef = useRef(null),
-    chatRef = useRef(null),
-    swipeRef = useRef(null);
+  const inputRef = useRef(null), chatRef = useRef(null), swipeRef = useRef(null);
 
   // Keep the entire mobile chat inside the visual viewport when the soft keyboard opens.
   useEffect(() => {
     const root = document.documentElement;
     const viewport = window.visualViewport;
     const syncViewport = () => {
-      root.style.setProperty(
-        "--zinger-mobile-vh",
-        (viewport?.height || window.innerHeight) + "px",
-      );
-      root.style.setProperty(
-        "--zinger-mobile-offset",
-        (viewport?.offsetTop || 0) + "px",
-      );
+      root.style.setProperty("--zinger-mobile-vh",
+        (viewport?.height || window.innerHeight) + "px");
+      root.style.setProperty("--zinger-mobile-offset",
+        (viewport?.offsetTop || 0) + "px");
     };
     syncViewport();
     viewport?.addEventListener("resize", syncViewport);
@@ -1271,14 +1353,11 @@ function Mobile({
     field.style.height = "auto";
     field.style.height = Math.min(field.scrollHeight, 112) + "px";
   }, [draft]);
-  const firstRef = useRef(true),
-    bottomRef = useRef(true);
-  const lastMine = [...messages].reverse().find((m) => m.role === "partner");
+  const firstRef = useRef(true), bottomRef = useRef(true);
+  const lastMine = [...messages].reverse().find(m => m.role === "partner");
 
   useEffect(() => {
-    try {
-      localStorage.setItem("zinger-welcome-once-v2", "done");
-    } catch {}
+    try { localStorage.setItem("zinger-welcome-once-v2", "done"); } catch {}
   }, []);
   useEffect(() => {
     const el = chatRef.current;
@@ -1293,8 +1372,7 @@ function Mobile({
   useEffect(() => {
     if (bottomRef.current && document.visibilityState === "visible") markRead();
     const check = () => {
-      if (bottomRef.current && document.visibilityState === "visible")
-        markRead();
+      if (bottomRef.current && document.visibilityState === "visible") markRead();
     };
     document.addEventListener("visibilitychange", check);
     return () => document.removeEventListener("visibilitychange", check);
@@ -1311,16 +1389,13 @@ function Mobile({
     if (p) swipeRef.current = { x: p.clientX, y: p.clientY, message };
   };
   const endSwipe = (e) => {
-    const p = e.changedTouches[0],
-      initial = swipeRef.current;
+    const p = e.changedTouches[0], initial = swipeRef.current;
     swipeRef.current = null;
     if (!p || !initial) return;
     if (p.clientX - initial.x > 55 && Math.abs(p.clientY - initial.y) < 40) {
-      const { id, role, text } = initial.message;
+      const {id, role, text} = initial.message;
       setReplyTo({ id, role, text: text.slice(0, 160) });
-      requestAnimationFrame(() =>
-        inputRef.current?.focus({ preventScroll: true }),
-      );
+      requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true}));
     }
   };
   const submit = async (e) => {
@@ -1328,780 +1403,275 @@ function Mobile({
     if (!draft.trim() || !connected) return;
     const okay = await send(draft.trim(), replyTo);
     if (okay) {
-      setDraft("");
-      setReplyTo(null);
-      bottomRef.current = true;
+      setDraft(""); setReplyTo(null); bottomRef.current = true;
       onTypingActivity(false);
       requestAnimationFrame(() => {
-        if (chatRef.current)
-          chatRef.current.scrollTop = chatRef.current.scrollHeight;
-        inputRef.current?.focus({ preventScroll: true });
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        inputRef.current?.focus({preventScroll:true});
       });
     }
   };
-  return (
-    <div className="mobile">
-      <div className="decor decor1">♥</div>
-      <div className="decor decor2">✿</div>
-      <header className="mobile-head">
-        <div className="mobile-bears">
-          <Bear small />
-          <Bear small white />
+  return <div className="mobile">
+    <div className="decor decor1">♥</div><div className="decor decor2">✿</div>
+    <header className="mobile-head">
+      <div className="mobile-bears"><Bear small/><Bear small white/></div>
+      <div><h2>Dudu &amp; Bubu <Heart size={16} fill="#ec7991"/></h2>
+        <p>
+          <span className={`online-dot ${peerActive ? "" : "peer-is-away"}`}/>
+          {peerTyping ? "Dudu is typing..." :
+            peerActive ? "Dudu is active now ♡" :
+            connected ? "Dudu is away · Together, even from afar" : "Connecting to you..."}
+        </p></div>
+      <button className="mobile-exit" onClick={logout}>♡ Exit</button>
+    </header>
+    <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
+      {welcome && <div className="love-banner">
+        <div className="heart-floating">♡ ♥ ♡</div>
+        <div className="big-bears"><Bear/><Bear white/></div>
+        <b>Our little happy place ♡</b><span>Every message is a tiny hug.</span>
+      </div>}
+      <div className="date-chip">Today • just us two ♡</div>
+      {messages.map(message => <div key={message.id}
+        className={"bubble-wrap " + (message.role === "partner" ? "self" : "other")}
+        onTouchStart={e => startSwipe(e,message)} onTouchEnd={endSwipe}>
+        <div className="bubble">
+          {message.replyTo?.text && <div className="mobile-reply-quote">
+            <b>↳ {message.replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+            <span>{message.replyTo.text}</span></div>}
+          {message.text}
+          <small>{clock(message.createdAt)}{message.role === "partner" ? " ♡" : ""}</small>
+
         </div>
-        <div>
-          <h2>
-            Dudu &amp; Bubu <Heart size={16} fill="#ec7991" />
-          </h2>
-          <p>
-            <span
-              className={`online-dot ${peerActive ? "" : "peer-is-away"}`}
-            />
-            {peerTyping
-              ? "Dudu is typing..."
-              : peerActive
-                ? "Dudu is active now ♡"
-                : connected
-                  ? `Dudu · ${peerStatus}`
-                  : "Connecting to you..."}
-          </p>
-        </div>
-        <button className="mobile-exit" onClick={logout}>
-          ♡ Exit
-        </button>
-      </header>
-      {pushSetup}
-      <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
-        {welcome && (
-          <div className="love-banner">
-            <div className="heart-floating">♡ ♥ ♡</div>
-            <div className="big-bears">
-              <Bear />
-              <Bear white />
-            </div>
-            <b>Our little happy place ♡</b>
-            <span>Every message is a tiny hug.</span>
-          </div>
-        )}
-        <div className="date-chip">Today • just us two ♡</div>
-        {messages.map((message) => (
-          <div
-            key={message.id}
-            className={
-              "bubble-wrap " + (message.role === "partner" ? "self" : "other")
-            }
-            onTouchStart={(e) => startSwipe(e, message)}
-            onTouchEnd={endSwipe}
-          >
-            <div className="bubble">
-              {message.replyTo?.text && (
-                <div className="mobile-reply-quote">
-                  <b>
-                    ↳ {message.replyTo.role === "partner" ? "Bubu" : "Dudu"}
-                  </b>
-                  <span>{message.replyTo.text}</span>
-                </div>
-              )}
-              {message.text}
-              <small>
-                {clock(message.createdAt)}
-                {message.role === "partner" ? " ♡" : ""}
-              </small>
-            </div>
-          </div>
-        ))}
-      </div>
-      <form className="mobile-compose" onSubmit={submit}>
-        {replyTo && (
-          <div className="mobile-reply-preview">
-            <div>
-              <b>
-                ↪ Replying to {replyTo.role === "partner" ? "Bubu" : "Dudu"}
-              </b>
-              <span>{replyTo.text}</span>
-            </div>
-            <button type="button" onClick={() => setReplyTo(null)}>
-              ×
-            </button>
-          </div>
-        )}
-        <span>♡</span>
-        <textarea
-          ref={inputRef}
-          rows={1}
-          value={draft}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            onTypingActivity(Boolean(e.target.value.trim()));
-          }}
-          maxLength={2000}
-          placeholder="Write something sweet..."
-          aria-label="Message"
-          autoComplete="off"
-        />
-        <button
-          type="submit"
-          onPointerDown={(e) => e.preventDefault()}
-          disabled={!connected || !draft.trim()}
-          aria-label="Send message"
-        >
-          <Send size={19} />
-        </button>
-      </form>
-      <div className="mobile-bottom">Made with love, for us two ♡</div>
+      </div>)}
     </div>
-  );
+    <form className="mobile-compose" onSubmit={submit}>
+      {replyTo && <div className="mobile-reply-preview">
+        <div><b>↪ Replying to {replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+          <span>{replyTo.text}</span></div>
+        <button type="button" onClick={() => setReplyTo(null)}>×</button>
+      </div>}
+      <span>♡</span>
+      <textarea
+        ref={inputRef}
+        rows={1}
+        value={draft}
+        onChange={e => {
+          setDraft(e.target.value);
+          onTypingActivity(Boolean(e.target.value.trim()));
+        }}
+        maxLength={2000}
+        placeholder="Write something sweet..."
+        aria-label="Message"
+        autoComplete="off"
+      />
+      <button type="submit" onPointerDown={e => e.preventDefault()}
+        disabled={!connected || !draft.trim()} aria-label="Send message"><Send size={19}/></button>
+    </form>
+    <div className="mobile-bottom">Made with love, for us two ♡</div>
+  </div>;
 }
 
+/* =====================================================
+   MAIN APP — FIREBASE
+===================================================== */
 
+
+
+// Browser-tab unread count and an optional red count badge on the Z favicon.
+// Canvas output is a data URL, so it works on GitHub Pages as well as localhost.
 function useTabUnreadBadge(unreadCount, active) {
   useEffect(() => {
-    const icon =
-      document.querySelector('link[rel="icon"]') ||
+    const icon = document.querySelector('link[rel="icon"]') ||
       document.createElement("link");
-
     if (!icon.parentNode) {
       icon.rel = "icon";
       icon.type = "image/png";
       document.head.appendChild(icon);
     }
-
     const normalTitle = "ZINGER WEB D — Workspace";
     const count = active ? unreadCount : 0;
-
-    document.title =
-      count > 0
-        ? `(${count}) ${normalTitle}`
-        : normalTitle;
+    document.title = count > 0 ? `(${count}) ${normalTitle}` : normalTitle;
 
     const canvas = document.createElement("canvas");
-    canvas.width = 64;
-    canvas.height = 64;
-
+    canvas.width = canvas.height = 64;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     ctx.fillStyle = "#132a20";
     ctx.fillRect(0, 0, 64, 64);
-
     ctx.strokeStyle = "#70e6a1";
     ctx.lineWidth = 3;
     ctx.strokeRect(2, 2, 60, 60);
-
     ctx.fillStyle = "#a3ffca";
-    ctx.font = "bold 38px Arial";
+    ctx.font = "bold 38px Arial, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("Z", 29, 35);
 
     if (count > 0) {
-      const badge =
-        count > 99 ? "99+" : String(count);
-
+      const badge = count > 99 ? "99+" : String(count);
       ctx.fillStyle = "#f43f5e";
       ctx.beginPath();
       ctx.arc(49, 15, 15, 0, Math.PI * 2);
       ctx.fill();
-
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-
-      ctx.font =
-        badge.length >= 3
-          ? "bold 13px Arial"
-          : "bold 17px Arial";
-
+      ctx.font = badge.length >= 3 ? "bold 13px Arial" : "bold 17px Arial";
       ctx.fillText(badge, 49, 16);
     }
-
+    icon.type = "image/png";
     icon.href = canvas.toDataURL("image/png");
   }, [unreadCount, active]);
 }
 
 export default function App() {
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [messages, setMessages] = useState([]);
-  const [connected, setConnected] = useState(false);
-  const [error, setError] = useState("");
-
-  const [readAt, setReadAt] = useState({
-    host: 0,
-    partner: 0,
-  });
-
-  const [remotePresence, setRemotePresence] = useState(null);
-  const [typing, setTyping] = useState(false);
-  const [hostChatOpen, setHostChatOpen] = useState(true);
-  const [pageVisible, setPageVisible] = useState(
-    () => document.visibilityState === "visible"
-  );
-  const [now, setNow] = useState(Date.now());
-
-  const [soundEnabled, setSoundEnabled] = useState(isSoundEnabled);
-  const [networkOnline, setNetworkOnline] = useState(() => navigator.onLine);
-
-  const [audioReady, setAudioReady] = useState(false);
-  const [pushLoading, setPushLoading] = useState(false);
-  const [pushEnabled, setPushEnabled] = useState(false);
-  const [pushError, setPushError] = useState("");
-
+  const [session,setSession] = useState(null), [loading,setLoading] = useState(true);
+  const [messages,setMessages] = useState([]), [connected,setConnected] = useState(false);
+  const [error,setError] = useState("");
+  const [readAt,setReadAt] = useState({host:0,partner:0});
+  const [remotePresence,setRemotePresence] = useState(null);
+  const [typing,setTyping] = useState(false);
+  const [hostChatOpen,setHostChatOpen] = useState(true);
+  const [pageVisible,setPageVisible] = useState(() => document.visibilityState === "visible");
+  const [now,setNow] = useState(Date.now());
   const pending = useRef(0);
   const typingTimeoutRef = useRef(null);
-  const incomingTrackerRef = useRef(createIncomingTracker());
-  const activeSessionRef = useRef(null);
-  const loggingOutRef = useRef(false);
-  const pushRunRef = useRef(0);
-  const soundSettingsRef = useRef({ soundEnabled, audioReady });
-  soundSettingsRef.current = { soundEnabled, audioReady };
 
-  const onChatOpenChange = useCallback(
-    (open) => setHostChatOpen(open),
-    []
-  );
-
-  const onTypingActivity = useCallback((hasText) => {
+  const onChatOpenChange = useCallback(open => setHostChatOpen(open), []);
+  const onTypingActivity = useCallback(hasText => {
     window.clearTimeout(typingTimeoutRef.current);
     setTyping(Boolean(hasText));
-
-    if (hasText) {
-      typingTimeoutRef.current = window.setTimeout(
-        () => setTyping(false),
-        1700
-      );
-    }
-  }, []);
-
-  // ---------------------------------------------
-  // PC NOTIFICATION SOUND
-  // ---------------------------------------------
-
-  const unlockAudio = useCallback(async () => {
-    const ready = await unlockNotificationSound();
-    if (activeSessionRef.current?.role === "host") setAudioReady(ready);
-    return ready;
+    if (hasText) typingTimeoutRef.current = window.setTimeout(() => setTyping(false), 1700);
   }, []);
 
   useEffect(() => {
-    if (session?.role !== "host" || !soundEnabled) return;
-    const unlock = () => { unlockAudio(); };
-    window.addEventListener("pointerdown", unlock);
-    window.addEventListener("keydown", unlock);
-    return () => {
-      window.removeEventListener("pointerdown", unlock);
-      window.removeEventListener("keydown", unlock);
-      stopNotificationSound();
-    };
-  }, [session?.role, soundEnabled, unlockAudio]);
-
-  const toggleSound = async () => {
-    const next = !soundEnabled;
-    setSoundEnabled(next);
-    persistSoundEnabled(next);
-    if (next) {
-      if (await unlockAudio() && activeSessionRef.current?.role === "host") playNotificationSound();
-    } else {
-      stopNotificationSound();
-      setAudioReady(false);
-    }
-  };
-
-  // ---------------------------------------------
-  // PAGE VISIBILITY
-  // ---------------------------------------------
-
-  useEffect(() => {
-    const check = () => {
-      setPageVisible(document.visibilityState === "visible");
-      setNetworkOnline(navigator.onLine);
-      setNow(Date.now());
-      if (document.visibilityState !== "visible") {
-        window.clearTimeout(typingTimeoutRef.current);
-        setTyping(false);
-      }
-    };
-
+    const check = () => setPageVisible(document.visibilityState === "visible");
     document.addEventListener("visibilitychange", check);
-    window.addEventListener("online", check);
-    window.addEventListener("offline", check);
-
-    const timer = window.setInterval(
-      () => setNow(Date.now()),
-      1000
-    );
-
+    const timer = window.setInterval(() => setNow(Date.now()), 10000);
     return () => {
       document.removeEventListener("visibilitychange", check);
-      window.removeEventListener("online", check);
-      window.removeEventListener("offline", check);
       window.clearInterval(timer);
       window.clearTimeout(typingTimeoutRef.current);
     };
   }, []);
 
-  const localActive = Boolean(
-    session &&
-    pageVisible &&
-    networkOnline &&
-    (session.role === "partner" || hostChatOpen)
-  );
-
-  // ---------------------------------------------
-  // AUTHENTICATION
-  // ---------------------------------------------
+  const localActive = Boolean(session && pageVisible &&
+    (session.role === "partner" || hostChatOpen));
 
   useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-
-    return onAuthStateChanged(auth, async (user) => {
-      const role =
-        user?.uid === HOST_UID
-          ? "host"
-          : user?.uid === PARTNER_UID
-            ? "partner"
-            : null;
-
-      cancelZingerPush();
-      stopNotificationSound();
-      setAudioReady(false);
-      setRemotePresence(null);
-      setReadAt({ host: 0, partner: 0 });
-      window.clearTimeout(typingTimeoutRef.current);
-      setTyping(false);
-      const next = role ? { role, uid: user.uid } : null;
-      activeSessionRef.current = next;
-      loggingOutRef.current = false;
-      setSession(next);
-      if (!next) disableZingerPush().catch(() => {});
-      if (user && !role) {
-        try { await signOut(auth); }
-        catch { setError("Could not end the unauthorized session. Please reload."); }
-      }
-      setLoading(false);
-    });
-  }, []);
-
-  // ---------------------------------------------
-  // FIREBASE PRESENCE
-  // ---------------------------------------------
-
-  useEffect(() => {
-    setRemotePresence(null);
     if (!session || !db) return;
-
-    const otherUid =
-      session.role === "host"
-        ? PARTNER_UID
-        : HOST_UID;
-
+    const otherUid = session.role === "host" ? PARTNER_UID : HOST_UID;
     if (!otherUid) return;
-
-    return onSnapshot(
-      doc(db, "presence", otherUid),
-      (snapshot) => {
-        const data = snapshot.data();
-
-        setRemotePresence(
-          data
-            ? {
-                lastActiveAt: data.lastActiveAt?.toMillis?.() || data.updatedAt?.toMillis?.() || 0,
-                active: data.active === true,
-                typing: data.typing === true,
-                updatedAt:
-                  data.updatedAt?.toMillis?.() || 0,
-              }
-            : null
-        );
-      },
-      (err) => {
-        setError("Presence status: " + err.message);
-      }
-    );
+    return onSnapshot(doc(db, "presence", otherUid), snap => {
+      const data = snap.data();
+      setRemotePresence(data ? {
+        active: data.active === true,
+        typing: data.typing === true,
+        updatedAt: data.updatedAt?.toMillis?.() || 0
+      } : null);
+    }, err => setError("Presence status: " + err.message));
   }, [session]);
 
   useEffect(() => {
     if (!session || !db) return;
-    const publish = (active = localActive) => {
-      if (!navigator.onLine || loggingOutRef.current) return;
+    const publish = () => {
       setDoc(doc(db, "presence", session.uid), {
         uid: session.uid,
-        active,
-        typing: active && typing,
-        updatedAt: serverTimestamp(),
-        ...(active ? { lastActiveAt: serverTimestamp() } : {}),
-      }, { merge: true }).catch((err) => {
-        if (activeSessionRef.current?.uid === session.uid) setError("Presence update: " + err.code);
-      });
+        active: localActive,
+        typing: localActive && typing,
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch(err => setError("Presence update: " + err.message));
     };
     publish();
-    const timer = localActive ? window.setInterval(publish, 12000) : null;
-    const leave = () => publish(false);
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("pagehide", leave);
-    };
-  }, [session, localActive, typing, networkOnline]);
-
-  const { active: peerActive, typing: peerTyping } = presenceState(remotePresence, now);
-  const peerStatus = lastSeenLabel(remotePresence?.lastActiveAt, now);
-
-  // ---------------------------------------------
-  // LIVE MESSAGES
-  // ---------------------------------------------
-
-  useEffect(() => {
-    incomingTrackerRef.current = createIncomingTracker();
-    setMessages([]);
-    setConnected(false);
-
-    if (!session || !db) {
-      setMessages([]);
-      setConnected(false);
-      return;
-    }
-
-    const q = query(
-      collection(db, "messages"),
-      orderBy("createdAt", "desc"),
-      limit(HISTORY_LIMIT)
-    );
-
-    return onSnapshot(
-      q,
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        if (activeSessionRef.current?.uid !== session.uid) return;
-        const current = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-          pending: d.metadata.hasPendingWrites,
-          createdAt: d.data({ serverTimestamps: "estimate" }).createdAt?.toMillis?.() || 0,
-        })).filter((m) => m.createdAt + MESSAGE_TTL_MS > Date.now()).reverse();
-        const incoming = incomingTrackerRef.current.update(current, session.role, snapshot.metadata);
-        const sound = soundSettingsRef.current;
-        if (incoming.length && session.role === "host" && sound.soundEnabled && sound.audioReady) playNotificationSound();
-        setMessages(current);
-        setConnected(!snapshot.metadata.fromCache && navigator.onLine);
-        setError("");
-      },
-      (err) => {
-        setConnected(false);
-        setError("Connection error: " + err.code);
-      }
-    );
-  }, [session]);
-
-  // ---------------------------------------------
-  // READ RECEIPTS
-  // ---------------------------------------------
-
-  useEffect(() => {
-    if (!session || !db || !HOST_UID || !PARTNER_UID) {
-      return;
-    }
-
-    const unsubHost = onSnapshot(
-      doc(db, "readStatus", HOST_UID),
-      (snapshot) => {
-        setReadAt((current) => ({
-          ...current,
-          host:
-            snapshot.data()?.lastSeenAt?.toMillis?.() ||
-            0,
-        }));
-      },
-      (err) => {
-        setError("Read status: " + err.message);
-      }
-    );
-
-    const unsubPartner = onSnapshot(
-      doc(db, "readStatus", PARTNER_UID),
-      (snapshot) => {
-        setReadAt((current) => ({
-          ...current,
-          partner:
-            snapshot.data()?.lastSeenAt?.toMillis?.() || 0,
-        }));
-        if (session.role === "partner") {
-          clearBeautyNotifications(snapshot.data()?.lastSeenAt?.toMillis?.() || 0).catch(() => {});
-        }
-      },
-      (err) => {
-        setError("Read status: " + err.message);
-      }
-    );
-
-    return () => {
-      unsubHost();
-      unsubPartner();
-    };
-  }, [session]);
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setMessages((current) =>
-        current.filter(
-          (m) => m.createdAt + MESSAGE_TTL_MS > Date.now()
-        )
-      );
-    }, 60000);
-
+    const timer = window.setInterval(publish, 12000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [session, localActive, typing]);
 
-  const unreadCount = session
-    ? unreadMessages(messages, session.role, readAt[session.role], now).length
-    : 0;
+  const peerActive = Boolean(remotePresence?.active &&
+    now - remotePresence.updatedAt < 35000);
+  const peerTyping = Boolean(peerActive && remotePresence?.typing);
+  useEffect(() => {
+    if (!auth) { setLoading(false); return; }
+    return onAuthStateChanged(auth, async user => {
+      const role = user?.uid === HOST_UID ? "host" : user?.uid === PARTNER_UID ? "partner" : null;
+      if (user && !role) { await signOut(auth); setSession(null); }
+      else setSession(role ? {role,uid:user.uid} : null);
+      setLoading(false);
+    });
+  },[]);
+  useEffect(() => {
+    if (!session || !db) { setMessages([]); setConnected(false); return; }
+    const q=query(collection(db,"messages"),orderBy("createdAt","desc"),limit(200));
+    return onSnapshot(q,snap=>{
+      setMessages(snap.docs.map(d=>({id:d.id,...d.data(),
+        createdAt:d.data().createdAt?.toMillis?.()||Date.now()}))
+        .filter(m=>m.createdAt+86400000>Date.now()).reverse());
+      setConnected(true); setError("");
+    },err=>{setConnected(false);setError("Connection error: "+err.message);});
+  },[session]);
+  useEffect(() => {
+    if (!session || !db || !HOST_UID || !PARTNER_UID) return;
+    const unsubHost=onSnapshot(doc(db,"readStatus",HOST_UID),s=>
+      setReadAt(p=>({...p,host:s.data()?.lastSeenAt?.toMillis?.()||0})),
+      e=>setError("Read status: "+e.message));
+    const unsubPartner=onSnapshot(doc(db,"readStatus",PARTNER_UID),s=>
+      setReadAt(p=>({...p,partner:s.data()?.lastSeenAt?.toMillis?.()||0})),
+      e=>setError("Read status: "+e.message));
+    return ()=>{unsubHost();unsubPartner();};
+  },[session]);
+  useEffect(()=>{
+    const id=setInterval(()=>setMessages(current=>
+      current.filter(m=>m.createdAt+86400000>Date.now())),60000);
+    return ()=>clearInterval(id);
+  },[]);
+  const unreadCount=session ? messages.filter(m=>
+    m.role!==session.role && m.createdAt>readAt[session.role]).length : 0;
   useTabUnreadBadge(unreadCount, session?.role === "host");
 
-  const markRead = useCallback(async () => {
-    if (
-      !session ||
-      !db ||
-      document.visibilityState !== "visible" ||
-      !networkOnline ||
-      loggingOutRef.current
-    ) {
-      return;
-    }
-
-    const latest = [...messages]
-      .reverse()
-      .find((m) => m.role !== session.role);
-
-    if (
-      !latest ||
-      latest.createdAt <= readAt[session.role] ||
-      latest.createdAt <= pending.current
-    ) {
-      return;
-    }
-
-    pending.current = latest.createdAt;
-
-    try {
-      await setDoc(
-        doc(db, "readStatus", session.uid),
-        {
-          uid: session.uid,
-          lastSeenAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-      if (session.role === "partner") clearBeautyNotifications(latest.createdAt).catch(() => {});
-    } catch (err) {
-      pending.current = 0;
-      setError("Read receipt: " + err.message);
-    }
-  }, [session, messages, readAt, networkOnline]);
-
-  useEffect(() => {
-    pending.current = 0;
-  }, [session?.uid]);
-
-  // ---------------------------------------------
-  // FIREBASE CLOUD MESSAGING
-  // ---------------------------------------------
-
-  const enablePush = useCallback(async (requestPermission = false) => {
-    if (session?.role !== "partner" || !auth?.currentUser || loggingOutRef.current) return;
-    const uid = session.uid;
-    const run = ++pushRunRef.current;
-    setPushLoading(true);
-    setPushError("");
-    try {
-      await enableZingerPush(auth.currentUser, { requestPermission });
-      if (activeSessionRef.current?.uid === uid && run === pushRunRef.current) setPushEnabled(true);
-    } catch (err) {
-      if (activeSessionRef.current?.uid === uid && run === pushRunRef.current) {
-        setPushEnabled(false);
-        setPushError(err.message);
-      }
-    } finally {
-      if (run === pushRunRef.current) setPushLoading(false);
-    }
-  }, [session?.uid, session?.role]);
-
-  useEffect(() => {
-    setPushEnabled(false);
-    setPushError("");
-    setPushLoading(false);
-    if (session?.role !== "partner") return;
-    const restore = () => {
-      if (document.visibilityState === "visible" && navigator.onLine && getPushPermission() === "granted") enablePush(false);
-      else if (getPushPermission() !== "granted") setPushEnabled(false);
-    };
-    restore();
-    const timer = window.setInterval(restore, 60 * 60 * 1000);
-    document.addEventListener("visibilitychange", restore);
-    window.addEventListener("online", restore);
-    const unsubscribe = onSnapshot(doc(db, "pushTokens", session.uid), (snapshot) => {
-      if (!snapshot.exists() || !snapshot.data()?.enabled) setPushEnabled(false);
-    }, (err) => setPushError("Notification registration: " + err.code));
-    return () => {
-      cancelZingerPush();
-      pushRunRef.current++;
-      window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", restore);
-      window.removeEventListener("online", restore);
-      unsubscribe();
-    };
-  }, [session?.uid, session?.role, enablePush]);
-
-  useEffect(() => {
-    if (session?.role !== "partner" || !pushEnabled) return;
-    let disposed = false;
-    let unsubscribe;
-    listenForForegroundPush(session).then((stop) => {
-      if (disposed) stop();
-      else unsubscribe = stop;
-    }).catch(() => {});
-    return () => { disposed = true; unsubscribe?.(); };
-  }, [session?.uid, session?.role, pushEnabled]);
-
-  const logout = async () => {
-    if (loggingOutRef.current) return;
-    loggingOutRef.current = true;
-    activeSessionRef.current = null;
-    pushRunRef.current++;
-    cancelZingerPush();
+  const markRead=useCallback(async ()=>{
+    if (!session || !db || document.visibilityState!=="visible") return;
+    const latest=[...messages].reverse().find(m=>m.role!==session.role);
+    if (!latest || latest.createdAt<=readAt[session.role] || latest.createdAt<=pending.current) return;
+    pending.current=latest.createdAt;
+    try {await setDoc(doc(db,"readStatus",session.uid),
+      {uid:session.uid,lastSeenAt:serverTimestamp()},{merge:true});}
+    catch(e){pending.current=0;setError("Read receipt: "+e.message);}
+  },[session,messages,readAt]);
+  useEffect(()=>{pending.current=0;},[session?.uid]);
+  const logout=async ()=>{
     window.clearTimeout(typingTimeoutRef.current);
     setTyping(false);
-    setPushEnabled(false);
-    stopNotificationSound();
-    setAudioReady(false);
-    if (session && db && navigator.onLine) {
-      // Best effort only: an offline Firestore write must never prevent sign-out.
-      setDoc(doc(db, "presence", session.uid), {
-        uid: session.uid, active: false, typing: false, updatedAt: serverTimestamp(),
-      }, { merge: true }).catch(() => {});
+    if (session && db) {
+      try {
+        await setDoc(doc(db,"presence",session.uid),{
+          uid:session.uid,active:false,typing:false,updatedAt:serverTimestamp()
+        },{merge:true});
+      } catch { /* A stale presence automatically expires. */ }
     }
-    if (session?.role === "partner") {
-      try { await disableZingerPush(auth.currentUser); }
-      catch { console.warn("Notification cleanup incomplete; local alerts disabled. Check connectivity before enabling again."); }
-    }
-    try { await signOut(auth); }
-    catch (err) {
-      loggingOutRef.current = false;
-      activeSessionRef.current = session;
-      setError("Could not sign out: " + err.code);
-    }
+    await signOut(auth);
   };
-
-  // ---------------------------------------------
-  // SEND MESSAGE
-  // ---------------------------------------------
-
-  const send = async (text, replyTo = null) => {
-    if (!session || !db || !text.trim()) {
-      return false;
-    }
-
-    try {
-      const payload = {
-        text: text.trim().slice(0, 2000),
-        role: session.role,
-        authorUid: session.uid,
-        createdAt: serverTimestamp(),
-      };
-
-      if (replyTo?.id && replyTo?.text) {
-        payload.replyTo = {
-          id: replyTo.id,
-          role: replyTo.role,
-          text: replyTo.text.slice(0, 160),
-        };
-      }
-
-      await addDoc(collection(db, "messages"), payload);
-      return true;
-    } catch (err) {
-      setError("Could not send: " + err.message);
-      return false;
-    }
+  const send=async (text,replyTo=null)=>{
+    if(!session||!db||!text.trim())return false;
+    try{
+      const payload={text:text.trim().slice(0,2000),role:session.role,
+        authorUid:session.uid,createdAt:serverTimestamp()};
+      if(replyTo?.id && replyTo?.text)payload.replyTo={
+        id:replyTo.id,role:replyTo.role,text:replyTo.text.slice(0,160)};
+      await addDoc(collection(db,"messages"),payload);return true;
+    }catch(e){setError("Could not send: "+e.message);return false;}
   };
-
-  // ---------------------------------------------
-  // RENDER
-  // ---------------------------------------------
-
-  if (loading) {
-    return (
-      <div className="loading-screen">
-        ZINGER WEB D • Initializing session...
-      </div>
-    );
-  }
-
-  if (!session) {
-    return (
-      <Login configurationError={firebaseError} />
-    );
-  }
-
-  return (
-    <>
-      {error && (
-        <div className="connection-warning">
-          {error}
-        </div>
-      )}
-
-      {session.role === "host" && (
-        <button
-          type="button"
-          className="zinger-alert-button"
-          onClick={toggleSound}
-        >
-          {soundEnabled
-            ? "🔔 Sound ON"
-            : "🔕 Sound OFF"}
-        </button>
-      )}
-
-
-      {session.role === "host" ? (
-        <Desktop
-          messages={messages}
-          send={send}
-          connected={connected && networkOnline}
-          logout={logout}
-          unreadCount={unreadCount}
-          markRead={markRead}
-          partnerSeenAt={readAt.partner}
-          peerActive={peerActive}
-          peerTyping={peerTyping}
-          onTypingActivity={onTypingActivity}
-          onChatOpenChange={onChatOpenChange}
-          peerStatus={peerStatus}
-        />
-      ) : (
-        <Mobile
-          messages={messages}
-          send={send}
-          connected={connected && networkOnline}
-          logout={logout}
-          markRead={markRead}
-          hostSeenAt={readAt.host}
-          peerStatus={peerStatus}
-          pushSetup={!pushEnabled && (
-            <div className="zinger-push-setup">
-              <button type="button" onClick={() => enablePush(true)} disabled={pushLoading}>
-                {pushLoading ? "Enabling notifications..." : "🔔 Enable Beauty Offers"}
-              </button>
-              {pushError && <p role="status">{pushError}</p>}
-            </div>
-          )}
-          peerActive={peerActive}
-          peerTyping={peerTyping}
-          onTypingActivity={onTypingActivity}
-        />
-      )}
-    </>
-  );
+  if(loading)return <div className="loading-screen">ZINGER WEB D • Initializing session...</div>;
+  if(!session)return <Login configurationError={firebaseError}/>;
+  return <>
+    {error&&<div className="connection-warning">{error}</div>}
+    {session.role==="host"
+      ?<Desktop messages={messages} send={send} connected={connected} logout={logout}
+        unreadCount={unreadCount} markRead={markRead} partnerSeenAt={readAt.partner}
+        peerActive={peerActive} peerTyping={peerTyping}
+        onTypingActivity={onTypingActivity} onChatOpenChange={onChatOpenChange}/>
+      :<Mobile messages={messages} send={send} connected={connected} logout={logout}
+        markRead={markRead} hostSeenAt={readAt.host}
+        peerActive={peerActive} peerTyping={peerTyping}
+        onTypingActivity={onTypingActivity}/>}
+  </>;
 }

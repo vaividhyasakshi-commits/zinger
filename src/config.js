@@ -1,4 +1,4 @@
-const authVariables = [
+export const requiredClientVariables = [
   "VITE_FIREBASE_API_KEY",
   "VITE_FIREBASE_AUTH_DOMAIN",
   "VITE_FIREBASE_PROJECT_ID",
@@ -9,15 +9,8 @@ const authVariables = [
   "VITE_PARTNER_EMAIL",
 ];
 
-export const requiredClientVariables = [
-  ...authVariables,
-  "VITE_FIREBASE_MESSAGING_SENDER_ID",
-  "VITE_FIREBASE_VAPID_KEY",
-];
-
-export function validateClientConfig(env, { requirePush = true } = {}) {
-  const required = requirePush ? requiredClientVariables : authVariables;
-  const issues = required.filter((name) => {
+export function validateClientConfig(env) {
+  const issues = requiredClientVariables.filter((name) => {
     const value = env[name]?.trim();
     return !value || /^(REPLACE_|YOUR_|PASTE_)/i.test(value);
   });
@@ -31,22 +24,6 @@ export function validateClientConfig(env, { requirePush = true } = {}) {
     issues.push("VITE_FIREBASE_API_KEY");
   }
 
-  if (requirePush) {
-    const sender = env.VITE_FIREBASE_MESSAGING_SENDER_ID?.trim();
-    const vapid = env.VITE_FIREBASE_VAPID_KEY?.trim();
-    if (sender && !/^\d+$/.test(sender) && !issues.includes("VITE_FIREBASE_MESSAGING_SENDER_ID")) {
-      issues.push("VITE_FIREBASE_MESSAGING_SENDER_ID");
-    }
-    // An uncompressed P-256 public key is 65 bytes (87 unpadded base64url characters).
-    if (vapid && !/^B[A-Za-z0-9_-]{86}=?$/.test(vapid) && !issues.includes("VITE_FIREBASE_VAPID_KEY")) {
-      issues.push("VITE_FIREBASE_VAPID_KEY");
-    }
-    const appSender = env.VITE_FIREBASE_APP_ID?.trim().match(/^1:(\d+):web:/)?.[1];
-    if (appSender && sender && appSender !== sender && !issues.includes("VITE_FIREBASE_MESSAGING_SENDER_ID")) {
-      issues.push("VITE_FIREBASE_MESSAGING_SENDER_ID");
-    }
-  }
-
   return issues;
 }
 
@@ -56,7 +33,6 @@ export function getFirebaseWebConfig(env) {
     ["authDomain", "VITE_FIREBASE_AUTH_DOMAIN"],
     ["projectId", "VITE_FIREBASE_PROJECT_ID"],
     ["appId", "VITE_FIREBASE_APP_ID"],
-    ["messagingSenderId", "VITE_FIREBASE_MESSAGING_SENDER_ID"],
   ].map(([key, name]) => [key, env[name]?.trim() || ""]));
 }
 

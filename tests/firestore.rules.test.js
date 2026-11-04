@@ -3,8 +3,9 @@ import { after, before, test } from "node:test";
 import { readFileSync } from "node:fs";
 import { initializeTestEnvironment, assertFails, assertSucceeds } from "@firebase/rules-unit-testing";
 import { doc, setDoc, getDoc, serverTimestamp, Timestamp, updateDoc } from "firebase/firestore";
-import { HOST_UID, PARTNER_UID } from "../notification-server/config.js";
 
+const HOST_UID = "J7Q21mlsF5NcPUJrA9llqasbt0y1";
+const PARTNER_UID = "yvc9aqXcYUYTh9LcLcyAVgn3xLj1";
 const enabled = Boolean(process.env.FIRESTORE_EMULATOR_HOST);
 let environment;
 before(async () => {
@@ -50,15 +51,4 @@ ruleTest("rules: own read receipts and presence accept server timestamps; cross-
   assert.ok(data.lastActiveAt);
   await assertFails(setDoc(doc(host, "presence", PARTNER_UID), { uid: PARTNER_UID, active: true, typing: false, updatedAt: serverTimestamp() }));
   await assertFails(updateDoc(presence, { lastActiveAt: Timestamp.fromMillis(0), updatedAt: serverTimestamp() }));
-});
-
-ruleTest("rules: tokens are owner-only and notification job state is server-only", async () => {
-  const partner = db(PARTNER_UID);
-  await assertSucceeds(setDoc(doc(partner, "pushTokens", PARTNER_UID), { uid: PARTNER_UID, token: "test-token", enabled: true, updatedAt: serverTimestamp() }));
-  await assertFails(getDoc(doc(db(HOST_UID), "pushTokens", PARTNER_UID)));
-  await assertFails(setDoc(doc(db(HOST_UID), "pushTokens", PARTNER_UID), { uid: PARTNER_UID, token: "spoof", enabled: true, updatedAt: serverTimestamp() }));
-  for (const collection of ["_notificationJobs", "_notificationState", "unrelated"]) {
-    await assertFails(setDoc(doc(partner, collection, "test"), { status: "complete" }));
-    await assertFails(getDoc(doc(partner, collection, "test")));
-  }
 });

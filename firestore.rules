@@ -80,6 +80,8 @@ service cloud.firestore {
     }
 
     match /presence/{userId} {
+      // Clients publish lastActiveAt on active heartbeats and retain it while away.
+      // The previously published four-field schema rejected those writes for both users.
       allow read: if participant();
 
       allow create, update: if participant()
@@ -101,29 +103,6 @@ service cloud.firestore {
                 && request.resource.data.lastActiveAt == resource.data.lastActiveAt))));
 
       allow delete: if false;
-    }
-
-    match /pushTokens/{userId} {
-      allow read: if participant()
-        && request.auth.uid == userId;
-
-      allow create, update: if participant()
-        && request.auth.uid == userId
-        && request.resource.data.keys().hasOnly([
-          'uid', 'token', 'enabled', 'updatedAt'
-        ])
-        && request.resource.data.keys().hasAll([
-          'uid', 'token', 'enabled', 'updatedAt'
-        ])
-        && request.resource.data.uid == userId
-        && request.resource.data.token is string
-        && request.resource.data.token.size() > 0
-        && request.resource.data.token.size() <= 4096
-        && request.resource.data.enabled is bool
-        && request.resource.data.updatedAt == request.time;
-
-      allow delete: if participant()
-        && request.auth.uid == userId;
     }
 
     match /{document=**} {
