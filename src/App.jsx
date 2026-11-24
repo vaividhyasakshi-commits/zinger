@@ -1,3 +1,4 @@
+import "./host-mobile.css";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   onAuthStateChanged,
@@ -1471,6 +1472,144 @@ function Mobile({ messages, send, connected, logout, markRead, hostSeenAt, peerA
   </div>;
 }
 
+function HostMobile({ messages, send, connected, logout, markRead, partnerSeenAt, peerActive, peerTyping, onTypingActivity }) {
+  const [draft, setDraft] = useState("");
+  const [replyTo, setReplyTo] = useState(null);
+  const inputRef = useRef(null), chatRef = useRef(null), swipeRef = useRef(null);
+
+  // Keep the entire mobile chat inside the visual viewport when the soft keyboard opens.
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      root.style.setProperty("--zinger-mobile-vh",
+        (viewport?.height || window.innerHeight) + "px");
+      root.style.setProperty("--zinger-mobile-offset",
+        (viewport?.offsetTop || 0) + "px");
+    };
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      root.style.removeProperty("--zinger-mobile-vh");
+      root.style.removeProperty("--zinger-mobile-offset");
+    };
+  }, []);
+
+  // Grow the composer vertically, capped at three/four lines so chat remains readable.
+  useEffect(() => {
+    const field = inputRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = Math.min(field.scrollHeight, 112) + "px";
+  }, [draft]);
+  const firstRef = useRef(true), bottomRef = useRef(true);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (!el) return;
+    if (firstRef.current) {
+      firstRef.current = false;
+      // Always open on the newest conversations, including after refresh.
+      el.scrollTop = el.scrollHeight;
+      bottomRef.current = true;
+    } else if (bottomRef.current) el.scrollTop = el.scrollHeight;
+  }, [messages]);
+  useEffect(() => {
+    if (bottomRef.current && document.visibilityState === "visible") markRead();
+    const check = () => {
+      if (bottomRef.current && document.visibilityState === "visible") markRead();
+    };
+    document.addEventListener("visibilitychange", check);
+    return () => document.removeEventListener("visibilitychange", check);
+  }, [messages, markRead]);
+  const onScroll = () => {
+    const el = chatRef.current;
+    if (!el) return;
+    bottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 85;
+    if (bottomRef.current && document.visibilityState === "visible") markRead();
+  };
+  const startSwipe = (e, message) => {
+    const p = e.touches[0];
+    if (p) swipeRef.current = { x: p.clientX, y: p.clientY, message };
+  };
+  const endSwipe = (e) => {
+    const p = e.changedTouches[0], initial = swipeRef.current;
+    swipeRef.current = null;
+    if (!p || !initial) return;
+    if (p.clientX - initial.x > 55 && Math.abs(p.clientY - initial.y) < 40) {
+      const {id, role, text} = initial.message;
+      setReplyTo({ id, role, text: text.slice(0, 160) });
+      requestAnimationFrame(() => inputRef.current?.focus({preventScroll:true}));
+    }
+  };
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!draft.trim() || !connected) return;
+    const okay = await send(draft.trim(), replyTo);
+    if (okay) {
+      setDraft(""); setReplyTo(null); bottomRef.current = true;
+      onTypingActivity(false);
+      requestAnimationFrame(() => {
+        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
+        inputRef.current?.focus({preventScroll:true});
+      });
+    }
+  };
+  return <div className="mobile host-mobile">
+    <header className="mobile-head">
+      <div className="host-avatar">B</div>
+      <div><h2>Bubu</h2><p>
+        <span className={`online-dot ${peerActive ? "" : "peer-is-away"}`}/>
+        {peerTyping ? "Typing..." : !connected ? "Connecting..." : peerActive ? "Online" : "Offline"}
+      </p></div>
+      <button className="mobile-exit" onClick={logout}>Logout</button>
+    </header>
+    <div className="mobile-chat" ref={chatRef} onScroll={onScroll}>
+      <div className="date-chip">Last 24 hours</div>
+      {messages.map(message => <div key={message.id}
+        className={"bubble-wrap " + (message.role === "host" ? "self" : "other")}
+        onTouchStart={e => startSwipe(e,message)} onTouchEnd={endSwipe} onTouchCancel={() => { swipeRef.current = null; }}>
+        <div className="bubble">
+          {message.replyTo?.text && <div className="mobile-reply-quote">
+            <b>↳ {message.replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+            <span>{message.replyTo.text}</span></div>}
+          {message.text}
+          <small>{clock(message.createdAt)}{message.role === "host" ? (partnerSeenAt >= message.createdAt ? " ✓✓" : " ✓") : ""}</small>
+
+        </div>
+      </div>)}
+    </div>
+    <form className="mobile-compose" onSubmit={submit}>
+      {replyTo && <div className="mobile-reply-preview">
+        <div><b>↪ Replying to {replyTo.role === "partner" ? "Bubu" : "Dudu"}</b>
+          <span>{replyTo.text}</span></div>
+        <button type="button" onClick={() => setReplyTo(null)}>×</button>
+      </div>}
+        <textarea
+        ref={inputRef}
+        rows={1}
+        value={draft}
+        onChange={e => {
+          setDraft(e.target.value);
+          onTypingActivity(Boolean(e.target.value.trim()));
+        }}
+        maxLength={2000}
+        placeholder="Message..."
+        aria-label="Message"
+        autoComplete="off"
+      />
+      <button type="submit" onPointerDown={e => e.preventDefault()}
+        disabled={!connected || !draft.trim()} aria-label="Send message"><Send size={19}/></button>
+    </form>
+  </div>;
+}
+
+
 /* =====================================================
    MAIN APP — FIREBASE
 ===================================================== */
@@ -1524,7 +1663,20 @@ function useTabUnreadBadge(unreadCount, active) {
   }, [unreadCount, active]);
 }
 
+function usePhoneLayout() {
+  const [isPhone, setIsPhone] = useState(() => window.matchMedia("(max-width: 767px), (max-height: 767px) and (pointer: coarse)").matches);
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px), (max-height: 767px) and (pointer: coarse)");
+    const update = () => setIsPhone(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  return isPhone;
+}
+
 export default function App() {
+  const isPhone = usePhoneLayout();
   const [session,setSession] = useState(null), [loading,setLoading] = useState(true);
   const [messages,setMessages] = useState([]), [connected,setConnected] = useState(false);
   const [error,setError] = useState("");
@@ -1556,7 +1708,7 @@ export default function App() {
   }, []);
 
   const localActive = Boolean(session && pageVisible &&
-    (session.role === "partner" || hostChatOpen));
+    (session.role === "partner" || isPhone || hostChatOpen));
 
   useEffect(() => {
     if (!session || !db) return;
@@ -1664,7 +1816,11 @@ export default function App() {
   if(!session)return <Login configurationError={firebaseError}/>;
   return <>
     {error&&<div className="connection-warning">{error}</div>}
-    {session.role==="host"
+    {session.role==="host" && isPhone
+      ?<HostMobile messages={messages} send={send} connected={connected} logout={logout}
+        markRead={markRead} partnerSeenAt={readAt.partner}
+        peerActive={peerActive} peerTyping={peerTyping} onTypingActivity={onTypingActivity}/>
+      :session.role==="host"
       ?<Desktop messages={messages} send={send} connected={connected} logout={logout}
         unreadCount={unreadCount} markRead={markRead} partnerSeenAt={readAt.partner}
         peerActive={peerActive} peerTyping={peerTyping}

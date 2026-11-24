@@ -1,0 +1,26 @@
+.mobile.host-mobile {
+  position: fixed; inset: auto 0 auto; top: var(--zinger-mobile-offset, 0px);
+  width: 100%; max-width: none; margin: 0;
+  height: var(--zinger-mobile-vh, 100dvh); max-height: var(--zinger-mobile-vh, 100dvh);
+  background: #e9efeb; color: #182822; box-shadow: none;
+  font-family: 'DM Sans', Arial, sans-serif;
+}
+.mobile.host-mobile::before { display: none; }
+.host-mobile .mobile-head { background: #075e54; color: white; min-height: 64px; padding: max(10px, env(safe-area-inset-top)) 14px 10px; box-shadow: none; }
+.host-mobile .mobile-head h2 { color: white; font-size: 17px; }
+.host-mobile .mobile-head p { color: #e1f4ec; font-size: 12px; }
+.host-mobile .host-avatar { width: 42px; height: 42px; flex: 0 0 42px; display: grid; place-items: center; background: #d5e9dd; color: #075e54; border-radius: 50%; font-weight: 700; }
+.host-mobile .mobile-exit { background: transparent; color: white; border: 1px solid #ffffff70; font-size: 12px; padding: 8px 12px; }
+.host-mobile .mobile-chat { padding: 14px 12px 8px; min-height: 0; }
+.host-mobile .date-chip { color: #496058; background: #d7e4de; }
+.host-mobile .bubble-wrap { margin-bottom: 8px; }
+.host-mobile .mobile-chat .bubble { background: #fff; color: #182822; border-radius: 4px 14px 14px 14px; box-shadow: 0 1px 2px #00000012; padding: 9px 12px; }
+.host-mobile .mobile-chat .self .bubble { background: #d9fdd3; color: #182822; border-radius: 14px 4px 14px 14px; }
+.host-mobile .bubble small, .host-mobile .self .bubble small { color: #55766a; font-size: 10px; }
+.host-mobile .mobile-compose { background: #f4f7f5; border-color: #d8e2dd; padding: 8px 10px max(8px, env(safe-area-inset-bottom)); }
+.host-mobile .mobile-compose textarea { background: white; border-color: #d7e2dc; color: #182822; font-size: 16px; }
+.host-mobile .mobile-compose textarea:focus { border-color: #168475; }
+.host-mobile .mobile-compose textarea::placeholder { color: #778781; }
+.host-mobile .mobile-compose button[type="submit"] { background: #087f69; color: white; }
+.host-mobile .mobile-reply-quote, .host-mobile .mobile-reply-preview { background: #dcebe3; border-left-color: #087f69; }
+.host-mobile .mobile-reply-quote b, .host-mobile .mobile-reply-preview b, .host-mobile .mobile-reply-preview span, .host-mobile .mobile-reply-preview button[type="button"] { color: #315d50; }
