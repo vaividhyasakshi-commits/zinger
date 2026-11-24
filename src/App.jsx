@@ -1675,9 +1675,61 @@ function usePhoneLayout() {
   return isPhone;
 }
 
+// A short original bell tone. Unlock audio on a real user gesture.
+function useMobileMessageSound(enabled) {
+  const audioRef = useRef(null);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+  useEffect(() => {
+    const unlock = () => {
+      if (!enabledRef.current) return;
+      const Audio = window.AudioContext || window.webkitAudioContext;
+      if (!Audio) return;
+      try {
+        if (!audioRef.current || audioRef.current.state === "closed") {
+          audioRef.current = new Audio();
+        }
+        if (audioRef.current.state !== "running") audioRef.current.resume().catch(() => {});
+      } catch { /* Audio is unavailable on this browser. */ }
+    };
+    window.addEventListener("pointerup", unlock);
+    window.addEventListener("touchend", unlock);
+    window.addEventListener("keydown", unlock);
+    return () => {
+      window.removeEventListener("pointerup", unlock);
+      window.removeEventListener("touchend", unlock);
+      window.removeEventListener("keydown", unlock);
+      audioRef.current?.close().catch(() => {});
+      audioRef.current = null;
+    };
+  }, []);
+  return useCallback(() => {
+    const ctx = audioRef.current;
+    if (!enabledRef.current || !ctx || ctx.state !== "running") return;
+    try {
+      const start = ctx.currentTime;
+      [[784, .42, .09], [1176, .26, .045], [1568, .16, .025]].forEach(([freq, duration, volume]) => {
+        const tone = ctx.createOscillator();
+        const gain = ctx.createGain();
+        tone.type = "sine";
+        tone.frequency.value = freq;
+        gain.gain.setValueAtTime(.0001, start);
+        gain.gain.exponentialRampToValueAtTime(volume, start + .012);
+        gain.gain.exponentialRampToValueAtTime(.0001, start + duration);
+        tone.connect(gain);
+        gain.connect(ctx.destination);
+        tone.start(start);
+        tone.stop(start + duration + .01);
+        tone.onended = () => { tone.disconnect(); gain.disconnect(); };
+      });
+    } catch { /* Never interrupt chat because of audio. */ }
+  }, []);
+}
+
 export default function App() {
   const isPhone = usePhoneLayout();
   const [session,setSession] = useState(null), [loading,setLoading] = useState(true);
+  const playMessageSound = useMobileMessageSound(isPhone && session?.role !== "partner");
   const [messages,setMessages] = useState([]), [connected,setConnected] = useState(false);
   const [error,setError] = useState("");
   const [readAt,setReadAt] = useState({host:0,partner:0});
@@ -1754,13 +1806,28 @@ export default function App() {
   useEffect(() => {
     if (!session || !db) { setMessages([]); setConnected(false); return; }
     const q=query(collection(db,"messages"),orderBy("createdAt","desc"),limit(200));
-    return onSnapshot(q,snap=>{
+    let initialized = false;
+    const knownIds = new Set();
+    return onSnapshot(q, { includeMetadataChanges: true }, snap=>{
+      // The initial server snapshot is history, not a new notification.
+      if (!snap.metadata.fromCache) {
+        const incoming = initialized && snap.docs.some(messageDoc => {
+          const data = messageDoc.data();
+          return !knownIds.has(messageDoc.id) &&
+            !messageDoc.metadata.hasPendingWrites && data.role === "partner" &&
+            data.authorUid === PARTNER_UID &&
+            (data.createdAt?.toMillis?.() || 0) + 86400000 > Date.now();
+        });
+        snap.docs.forEach(d => knownIds.add(d.id));
+        initialized = true;
+        if (incoming && session.role === "host") playMessageSound();
+      }
       setMessages(snap.docs.map(d=>({id:d.id,...d.data(),
         createdAt:d.data().createdAt?.toMillis?.()||Date.now()}))
         .filter(m=>m.createdAt+86400000>Date.now()).reverse());
       setConnected(true); setError("");
     },err=>{setConnected(false);setError("Connection error: "+err.message);});
-  },[session]);
+  },[session, playMessageSound]);
   useEffect(() => {
     if (!session || !db || !HOST_UID || !PARTNER_UID) return;
     const unsubHost=onSnapshot(doc(db,"readStatus",HOST_UID),s=>
